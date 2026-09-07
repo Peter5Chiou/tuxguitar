@@ -2,11 +2,16 @@ package app.tuxguitar.app.view.component.tab;
 
 import app.tuxguitar.app.system.config.TGConfigKeys;
 import app.tuxguitar.app.system.config.TGConfigManager;
+import app.tuxguitar.app.system.icons.TGSkinManager;
+import app.tuxguitar.app.system.properties.TGPropertiesUIUtil;
 import app.tuxguitar.graphics.control.TGLayoutStyles;
+import app.tuxguitar.util.properties.TGProperties;
+import app.tuxguitar.ui.resource.UIColorModel;
 
 public class TablatureStyles extends TGLayoutStyles {
 
 	public TablatureStyles(TGConfigManager config) {
+		TGProperties skinProperties = TGSkinManager.getInstance(config.getContext()).getCurrentSkinProperties();
 		this.setBufferEnabled(true);
 		this.setStringSpacing(config.getIntegerValue(TGConfigKeys.STYLE_STRING_SPACING));
 		this.setScoreLineSpacing(config.getIntegerValue(TGConfigKeys.STYLE_SCORE_LINE_SPACING));
@@ -46,17 +51,21 @@ public class TablatureStyles extends TGLayoutStyles {
 		this.setGraceFont(config.getFontModelConfigValue(TGConfigKeys.FONT_GRACE));
 		this.setChordFont(config.getFontModelConfigValue(TGConfigKeys.FONT_CHORD));
 		this.setChordFretFont(config.getFontModelConfigValue(TGConfigKeys.FONT_CHORD_FRET));
-		this.setForegroundColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_FOREGROUND));
-		this.setBackgroundColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_BACKGROUND));
-		this.setBackgroundColorPlaying(config.getColorModelConfigValue(TGConfigKeys.COLOR_BACKGROUND_PLAYING));
-		this.setLineColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_LINE));
-		this.setLineColorInvalid(config.getColorModelConfigValue(TGConfigKeys.COLOR_LINE_INVALID));
-		this.setScoreNoteColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_SCORE_NOTE));
-		this.setTabNoteColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_TAB_NOTE));
-		this.setPlayNoteColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_PLAY_NOTE));
-		this.setSelectionColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_SELECTION));
-		this.setLoopSMarkerColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_LOOP_S_MARKER));
-		this.setLoopEMarkerColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_LOOP_E_MARKER));
-		this.setMeasureNumberColor(config.getColorModelConfigValue(TGConfigKeys.COLOR_MEASURE_NUMBER));
+		this.setForegroundColor(getColor(config, skinProperties, "color.foreground", TGConfigKeys.COLOR_FOREGROUND));
+		this.setBackgroundColor(getColor(config, skinProperties, "color.background", TGConfigKeys.COLOR_BACKGROUND));
+		this.setBackgroundColorPlaying(getColor(config, skinProperties, "color.background.playing", TGConfigKeys.COLOR_BACKGROUND_PLAYING));
+		this.setLineColor(getColor(config, skinProperties, "color.line", TGConfigKeys.COLOR_LINE));
+		this.setLineColorInvalid(getColor(config, skinProperties, "color.line.invalid", TGConfigKeys.COLOR_LINE_INVALID));
+		this.setScoreNoteColor(getColor(config, skinProperties, "color.score.note", TGConfigKeys.COLOR_SCORE_NOTE));
+		this.setTabNoteColor(getColor(config, skinProperties, "color.tab.note", TGConfigKeys.COLOR_TAB_NOTE));
+		this.setPlayNoteColor(getColor(config, skinProperties, "color.play.note", TGConfigKeys.COLOR_PLAY_NOTE));
+		this.setSelectionColor(getColor(config, skinProperties, "color.selection", TGConfigKeys.COLOR_SELECTION));
+		this.setLoopSMarkerColor(getColor(config, skinProperties, "color.loop.s.marker", TGConfigKeys.COLOR_LOOP_S_MARKER));
+		this.setLoopEMarkerColor(getColor(config, skinProperties, "color.loop.e.marker", TGConfigKeys.COLOR_LOOP_E_MARKER));
+		this.setMeasureNumberColor(getColor(config, skinProperties, "color.measure.number", TGConfigKeys.COLOR_MEASURE_NUMBER));
+	}
+
+	private static UIColorModel getColor(TGConfigManager config, TGProperties skinProperties, String skinKey, String configKey) {
+		return TGPropertiesUIUtil.getColorModelValue(config.getContext(), skinProperties, skinKey, config.getColorModelConfigValue(configKey));
 	}
 }

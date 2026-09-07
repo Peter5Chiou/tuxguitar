@@ -35,6 +35,18 @@ public class SWTToolBar extends SWTControl<ToolBar> implements UIToolBar {
 		this.toolCustomItems = new ArrayList<SWTToolCustomItem>();
 	}
 
+	@Override
+	public void setBgColor(app.tuxguitar.ui.resource.UIColor color) {
+		super.setBgColor(color);
+		this.refreshImages();
+	}
+
+	public void refreshImages() {
+		for(SWTToolItem item : this.toolItems) {
+			item.refreshImage();
+		}
+	}
+
 	public UIComponent createSeparator() {
 		ToolItem toolItem = new ToolItem(this.getControl(), SWT.SEPARATOR);
 

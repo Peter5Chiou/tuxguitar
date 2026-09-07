@@ -12,3 +12,5 @@ target/
 android/build-scripts/tuxguitar-android/local.properties
 android/build-scripts/tuxguitar-android/.idea/
 .DS_Store
+/.vs
+*.log

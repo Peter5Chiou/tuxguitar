@@ -15,5 +15,6 @@ public class SWTToolCheckableItem extends SWTToolActionItem implements UIToolChe
 
 	public void setChecked(boolean checked) {
 		this.getControl().setSelection(checked);
+		this.getParent().refreshImages();
 	}
 }

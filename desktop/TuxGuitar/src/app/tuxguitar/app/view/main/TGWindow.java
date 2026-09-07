@@ -20,8 +20,11 @@ import app.tuxguitar.event.TGEventListener;
 import app.tuxguitar.ui.UIFactory;
 import app.tuxguitar.ui.layout.UITableLayout;
 import app.tuxguitar.ui.resource.UICursor;
+import app.tuxguitar.ui.resource.UIColor;
 import app.tuxguitar.ui.resource.UIRectangle;
 import app.tuxguitar.ui.resource.UISize;
+import app.tuxguitar.ui.widget.UIControl;
+import app.tuxguitar.ui.widget.UIContainer;
 import app.tuxguitar.ui.widget.UIPanel;
 import app.tuxguitar.ui.widget.UIWindow;
 import app.tuxguitar.util.TGContext;
@@ -60,7 +63,31 @@ public class TGWindow implements TGEventListener {
 		this.createShellComposites(uiFactory);
 		this.createShellListeners();
 		this.loadIcons();
+		this.applySkinColors();
 		this.loadInitialBounds();
+	}
+
+	private void applySkinColors() {
+		if(this.isDisposed()) {
+			return;
+		}
+
+		boolean dark = TGSkinManager.getInstance(this.context).getCurrentSkin().endsWith("-dark");
+		UIFactory uiFactory = TGApplication.getInstance(this.context).getFactory();
+		UIColor background = uiFactory.createColor(dark ? 0x20 : 0xFF, dark ? 0x20 : 0xFF, dark ? 0x20 : 0xFF);
+		UIColor foreground = uiFactory.createColor(dark ? 0xE0 : 0x00, dark ? 0xE0 : 0x00, dark ? 0xE0 : 0x00);
+
+		this.applySkinColors(this.window, background, foreground);
+	}
+
+	private void applySkinColors(UIControl control, UIColor background, UIColor foreground) {
+		control.setBgColor(background);
+		control.setFgColor(foreground);
+		if(control instanceof UIContainer) {
+			for(UIControl child : ((UIContainer) control).getChildren()) {
+				this.applySkinColors(child, background, foreground);
+			}
+		}
 	}
 
 	public TGWindowDivider getTableDivider() {
@@ -198,6 +225,7 @@ public class TGWindow implements TGEventListener {
 			public void run() {
 				if( TGSkinEvent.EVENT_TYPE.equals(event.getEventType()) ) {
 					loadIcons();
+					applySkinColors();
 				}
 			}
 		});

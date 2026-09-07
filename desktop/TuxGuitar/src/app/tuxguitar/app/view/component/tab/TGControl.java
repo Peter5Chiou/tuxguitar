@@ -3,6 +3,8 @@ package app.tuxguitar.app.view.component.tab;
 import app.tuxguitar.app.TuxGuitar;
 import app.tuxguitar.app.system.config.TGConfigKeys;
 import app.tuxguitar.app.system.config.TGConfigManager;
+import app.tuxguitar.app.system.icons.TGSkinEvent;
+import app.tuxguitar.app.system.icons.TGSkinManager;
 import app.tuxguitar.app.system.keybindings.KeyBindingActionManager;
 import app.tuxguitar.app.transport.TGTransport;
 import app.tuxguitar.app.ui.TGApplication;
@@ -28,8 +30,10 @@ import app.tuxguitar.ui.widget.UIContainer;
 import app.tuxguitar.ui.widget.UIScrollBar;
 import app.tuxguitar.ui.widget.UIScrollBarPanel;
 import app.tuxguitar.util.TGContext;
+import app.tuxguitar.event.TGEvent;
+import app.tuxguitar.event.TGEventListener;
 
-public class TGControl {
+public class TGControl implements TGEventListener {
 
 	private static final int SCROLL_INCREMENT = 50;
 
@@ -73,6 +77,7 @@ public class TGControl {
 		this.horizontalMarginPercent = TGConfigManager.getInstance(context).getIntegerValue(TGConfigKeys.SCROLLING_HORIZONTAL_MARGIN_PERCENT);
 		this.verticalMarginPercent = TGConfigManager.getInstance(context).getIntegerValue(TGConfigKeys.SCROLLING_VERTICAL_MARGIN_PERCENT);
 		this.excludeScrollbars = TGConfigManager.getInstance(context).getBooleanValue(TGConfigKeys.DISPLAY_EXCLUDE_SCROLLBARS);
+		TGSkinManager.getInstance(this.context).addLoader(this);
 		this.initialize(parent);
 	}
 
@@ -119,11 +124,19 @@ public class TGControl {
 		this.canvas.setPopupMenu(TuxGuitar.getInstance().getItemManager().getPopupMenu());
 		this.canvas.addDisposeListener(new UIDisposeListener() {
 			public void onDispose(UIDisposeEvent event) {
+				TGSkinManager.getInstance(TGControl.this.context).removeLoader(TGControl.this);
 				TGControl.this.canvas.setPopupMenu(null);
 			}
 		});
 
 		layout.set(this.canvas, 1, 1, UITableLayout.ALIGN_FILL, UITableLayout.ALIGN_FILL, true, true, 1, 1, null, null, 0f);
+	}
+
+	public void processEvent(TGEvent event) {
+		if (TGSkinEvent.EVENT_TYPE.equals(event.getEventType()) && !this.isDisposed()) {
+			this.tablature.reloadStyles();
+			this.canvas.redraw();
+		}
 	}
 
 	public void paintTablature(UIPainter painter) {
