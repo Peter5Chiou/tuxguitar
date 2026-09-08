@@ -49,6 +49,16 @@ public class SWTMenu extends SWTEventReceiver<Menu> implements UIMenu {
 
 		Color backgroundColor = ((SWTColor) background).getHandle();
 		Color foregroundColor = ((SWTColor) foreground).getHandle();
+		if(!isDark(backgroundColor)) {
+			display.setData(MENU_BACKGROUND_KEY, null);
+			display.setData(MENU_FOREGROUND_KEY, null);
+			display.setData(DARK_THEME_KEY, null);
+			display.setData(MENU_BAR_BACKGROUND_KEY, null);
+			display.setData(MENU_BAR_FOREGROUND_KEY, null);
+			display.setData(MENU_BAR_BORDER_KEY, null);
+			return;
+		}
+
 		display.setData(MENU_BACKGROUND_KEY, backgroundColor);
 		display.setData(MENU_FOREGROUND_KEY, foregroundColor);
 		display.setData(DARK_THEME_KEY, Boolean.valueOf(isDark(backgroundColor)));
