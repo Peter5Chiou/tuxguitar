@@ -66,7 +66,7 @@ public class TGTunerRoughWidget {
 		UIRectangle compositeSize = this.composite.getBounds();
 
 		// lines and tones
-		painter.setForeground(colorManager.getColor(TGColorManager.COLOR_BLACK));
+		painter.setForeground(this.composite.getFgColor());
 		painter.initPath();
 		painter.moveTo(this.startA, compositeSize.getHeight()/2);
 		painter.lineTo(compositeSize.getWidth()-this.endAb, compositeSize.getHeight()/2);

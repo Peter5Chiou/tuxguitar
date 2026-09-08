@@ -70,7 +70,7 @@ public class TGTunerFineWidget {
 
 		// margins & stuff
 
-		painter.setForeground(colorManager.getColor(TGColorManager.COLOR_BLACK));
+		painter.setForeground(this.composite.getFgColor());
 		painter.initPath();
 		painter.setLineWidth(2);
 		float height = compositeSize.getHeight() - BOTTOM_Y-25;

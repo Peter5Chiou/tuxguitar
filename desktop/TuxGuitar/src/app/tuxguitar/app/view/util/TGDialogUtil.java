@@ -18,6 +18,7 @@ public class TGDialogUtil {
 	}
 
 	public static final void openDialog(UIWindow dialog, UIWindow parent, int style){
+		TGDialogSkinManager.getInstance(getContext(dialog)).register(dialog);
 		if((style & OPEN_STYLE_PACK) != 0){
 			dialog.pack();
 		}
@@ -35,5 +36,9 @@ public class TGDialogUtil {
 			dialog.setBounds(dialogBounds);
 		}
 		dialog.open();
+	}
+
+	private static app.tuxguitar.util.TGContext getContext(UIWindow dialog){
+		return app.tuxguitar.app.TuxGuitar.getInstance().getContext();
 	}
 }
