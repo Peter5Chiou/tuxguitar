@@ -25,6 +25,7 @@ import app.tuxguitar.ui.swt.chooser.SWTFileChooser;
 import app.tuxguitar.ui.swt.chooser.SWTFontChooser;
 import app.tuxguitar.ui.swt.chooser.SWTPrinterChooser;
 import app.tuxguitar.ui.swt.menu.SWTMenuBar;
+import app.tuxguitar.ui.swt.menu.SWTMenu;
 import app.tuxguitar.ui.swt.menu.SWTPopupMenu;
 import app.tuxguitar.ui.swt.resource.SWTResourceFactory;
 import app.tuxguitar.ui.swt.toolbar.SWTToolBar;
@@ -307,6 +308,10 @@ public class SWTFactory implements UIFactory {
 
 	public UIPopupMenu createPopupMenu(UIWindow parent) {
 		return new SWTPopupMenu((SWTWindow) parent);
+	}
+
+	public void setMenuColors(UIColor background, UIColor foreground) {
+		SWTMenu.setDefaultColors(this.display, background, foreground);
 	}
 
 	@SuppressWarnings("unchecked")

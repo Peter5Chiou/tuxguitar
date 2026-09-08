@@ -14,3 +14,4 @@ android/build-scripts/tuxguitar-android/.idea/
 .DS_Store
 /.vs
 *.log
+.github/copilot-instructions.md

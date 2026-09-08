@@ -7,6 +7,7 @@ import app.tuxguitar.ui.chooser.UIFontChooser;
 import app.tuxguitar.ui.chooser.UIPrinterChooser;
 import app.tuxguitar.ui.menu.UIMenuBar;
 import app.tuxguitar.ui.menu.UIPopupMenu;
+import app.tuxguitar.ui.resource.UIColor;
 import app.tuxguitar.ui.resource.UIResourceFactory;
 import app.tuxguitar.ui.toolbar.UIToolBar;
 import app.tuxguitar.ui.widget.UIButton;
@@ -54,6 +55,9 @@ public interface UIFactory extends UIResourceFactory {
 	UIMenuBar createMenuBar(UIWindow parent);
 
 	UIPopupMenu createPopupMenu(UIWindow parent);
+
+	default void setMenuColors(UIColor background, UIColor foreground) {
+	}
 
 	UIToolBar createHorizontalToolBar(UIContainer parent);
 

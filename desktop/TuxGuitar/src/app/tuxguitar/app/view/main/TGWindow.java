@@ -7,6 +7,7 @@ import app.tuxguitar.app.system.config.TGConfigManager;
 import app.tuxguitar.app.system.icons.TGSkinEvent;
 import app.tuxguitar.app.system.icons.TGIconManager;
 import app.tuxguitar.app.system.icons.TGSkinManager;
+import app.tuxguitar.app.system.properties.TGPropertiesUIUtil;
 import app.tuxguitar.app.ui.TGApplication;
 import app.tuxguitar.app.view.component.tabfolder.TGTabFolder;
 import app.tuxguitar.app.view.component.table.TGTableViewer;
@@ -21,6 +22,7 @@ import app.tuxguitar.ui.UIFactory;
 import app.tuxguitar.ui.layout.UITableLayout;
 import app.tuxguitar.ui.resource.UICursor;
 import app.tuxguitar.ui.resource.UIColor;
+import app.tuxguitar.ui.resource.UIColorModel;
 import app.tuxguitar.ui.resource.UIRectangle;
 import app.tuxguitar.ui.resource.UISize;
 import app.tuxguitar.ui.widget.UIControl;
@@ -30,6 +32,7 @@ import app.tuxguitar.ui.widget.UIWindow;
 import app.tuxguitar.util.TGContext;
 import app.tuxguitar.util.TGExpressionResolver;
 import app.tuxguitar.util.TGSynchronizer;
+import app.tuxguitar.util.properties.TGProperties;
 import app.tuxguitar.util.singleton.TGSingletonFactory;
 import app.tuxguitar.util.singleton.TGSingletonUtil;
 
@@ -60,6 +63,7 @@ public class TGWindow implements TGEventListener {
 		this.window = uiFactory.createWindow();
 		this.window.addCloseListener(new TGActionProcessorListener(this.context, TGDisposeAction.NAME));
 
+		this.applySkinColors();
 		this.createShellComposites(uiFactory);
 		this.createShellListeners();
 		this.loadIcons();
@@ -72,11 +76,15 @@ public class TGWindow implements TGEventListener {
 			return;
 		}
 
-		boolean dark = TGSkinManager.getInstance(this.context).getCurrentSkin().endsWith("-dark");
 		UIFactory uiFactory = TGApplication.getInstance(this.context).getFactory();
-		UIColor background = uiFactory.createColor(dark ? 0x20 : 0xFF, dark ? 0x20 : 0xFF, dark ? 0x20 : 0xFF);
-		UIColor foreground = uiFactory.createColor(dark ? 0xE0 : 0x00, dark ? 0xE0 : 0x00, dark ? 0xE0 : 0x00);
+		TGConfigManager config = TGConfigManager.getInstance(this.context);
+		TGProperties skinProperties = TGSkinManager.getInstance(this.context).getCurrentSkinProperties();
+		UIColorModel backgroundModel = TGPropertiesUIUtil.getColorModelValue(this.context, skinProperties, "color.background", config.getColorModelConfigValue(TGConfigKeys.COLOR_BACKGROUND));
+		UIColorModel foregroundModel = TGPropertiesUIUtil.getColorModelValue(this.context, skinProperties, "color.foreground", config.getColorModelConfigValue(TGConfigKeys.COLOR_FOREGROUND));
+		UIColor background = uiFactory.createColor(backgroundModel);
+		UIColor foreground = uiFactory.createColor(foregroundModel);
 
+		uiFactory.setMenuColors(background, foreground);
 		this.applySkinColors(this.window, background, foreground);
 	}
 
