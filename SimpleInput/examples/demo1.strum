@@ -1,0 +1,11 @@
+% SimpleInput 範例：基本刷法
+M:4/4
+L:1/8
+Q:1/4=90
+K:C
+
+@basic  = d2u2d2u2
+@island = d2 u d u d2 u
+@arp    = t (23) 1 (23) 1 (23) 1 (23)
+
+G(4) @basic | C(4) @island | G(4) @basic | Am(4) @arp | F(4) @basic | C(4) @basic ||

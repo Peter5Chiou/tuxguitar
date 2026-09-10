@@ -1,0 +1,5 @@
+% SimpleInput 範例：弱起拍 + 錯誤（弱起+末小節需合計 8 單位）
+M:4/4
+L:1/8
+
+G(4) @basic | C(4) @island | Am(4) @arp | F(2) u ||

@@ -1,0 +1,5 @@
+% SimpleInput 範例：pattern 與和弦時值不符錯誤（G(4)=8 單位，dudu=4 單位）
+M:4/4
+L:1/8
+
+G(4) dudu | C(4) d2u2d2u2 ||

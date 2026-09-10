@@ -1,0 +1,5 @@
+### Plugin Information ###
+plugin.name=SimpleInput strum file import plugin
+plugin.description=Plugin to import simple text strumming notation (.strum) files
+plugin.author=SimpleInput
+plugin.version=1.0

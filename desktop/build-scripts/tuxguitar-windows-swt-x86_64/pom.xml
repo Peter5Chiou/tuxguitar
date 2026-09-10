@@ -45,6 +45,7 @@
 		<module>../../../common/TuxGuitar-pdf</module>
 		<module>../../TuxGuitar-pdf-ui</module>
 		<module>../../../common/TuxGuitar-ptb</module>
+		<module>../../../common/TuxGuitar-simpleinput</module>
 		<module>../../TuxGuitar-tef</module>
 		<module>../../TuxGuitar-tuner</module>
 		<module>../../TuxGuitar-svg</module>
@@ -257,6 +258,12 @@
 									<groupId>${project.groupId}</groupId>
 									<artifactId>tuxguitar-ptb</artifactId>
 									<destFileName>tuxguitar-ptb.jar</destFileName>
+									<outputDirectory>${project.build.directory}/${project.finalName}/share/plugins</outputDirectory>
+								</artifactItem>
+								<artifactItem>
+									<groupId>${project.groupId}</groupId>
+									<artifactId>tuxguitar-simpleinput</artifactId>
+									<destFileName>tuxguitar-simpleinput.jar</destFileName>
 									<outputDirectory>${project.build.directory}/${project.finalName}/share/plugins</outputDirectory>
 								</artifactItem>
 								<artifactItem>
