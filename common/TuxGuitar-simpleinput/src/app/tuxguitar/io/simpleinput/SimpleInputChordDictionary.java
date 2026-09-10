@@ -83,6 +83,17 @@ public class SimpleInputChordDictionary {
 		return deriveBarreChord(name);
 	}
 
+	/** 將和弦按型平移到指定把位；position 以第 1 品為起點。 */
+	public ChordInfo atPosition(ChordInfo source, int position) {
+		ChordInfo shifted = new ChordInfo();
+		shifted.name = source.name;
+		shifted.rootString = source.rootString;
+		for (int i = 0; i < source.frets.length; i++) {
+			shifted.frets[i] = source.frets[i] < 0 ? -1 : source.frets[i] + position;
+		}
+		return shifted;
+	}
+
 	/** 支援 E/Em/A/Am 形升降半音推移，如 F#m、Bb、C#m、G#7 等。
 	 *  同時嘗試 E 形（根音弦6）與 A 形（根音弦5），取把位較低者。 */
 	private ChordInfo deriveBarreChord(String name) {

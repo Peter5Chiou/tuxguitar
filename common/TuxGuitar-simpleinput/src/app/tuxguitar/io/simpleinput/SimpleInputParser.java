@@ -16,7 +16,7 @@ public class SimpleInputParser {
 	private static final Pattern HEADER_L = Pattern.compile("L:\\s*(\\d+)\\s*/\\s*(\\d+)");
 	private static final Pattern HEADER_Q = Pattern.compile("Q:\\s*(\\d+)\\s*/\\s*(\\d+)\\s*=\\s*(\\d+)");
 	private static final Pattern HEADER_K = Pattern.compile("K:\\s*(\\S+)");
-	private static final Pattern CHORD_TOKEN_PATTERN = Pattern.compile("^([A-G][A-Za-z0-9#b]*)(?:\\((\\d+)\\))?$");
+	private static final Pattern CHORD_TOKEN_PATTERN = Pattern.compile("^([A-G][A-Za-z0-9#b]*)(?:@(\\d+))?(?:\\((\\d+)\\))?$");
 
 	private int totalUnitsPerMeasure; // 每小節的基礎單位數
 	private int unitsPerBeat;         // 每拍的基礎單位數 = unitDenominator / denominator
@@ -175,8 +175,9 @@ public class SimpleInputParser {
 		SimpleInputSong.Measure measure = new SimpleInputSong.Measure();
 		measure.line = lineNo;
 
-		// 以和弦記號切分段落：和弦名（可含數字）+ 可選括號拍數 + 後續事件
-		Matcher m = Pattern.compile("([A-G][A-Za-z0-9#b]*(?:\\(\\d+\\))?)|(@[A-Za-z0-9_]+)|([^\\s]+)").matcher(text);
+			// 以和弦記號切分段落：和弦名 + 可選把位 + 可選括號拍數 + 後續事件
+			// 括號群組 (6 3 2 1) 或 (6 3=4 2=5 1=3) 內部可含空格，需視為單一 token
+		Matcher m = Pattern.compile("([A-G][A-Za-z0-9#b]*(?:@\\d+)?(?:\\(\\d+\\))?)|(@[A-Za-z0-9_]+)|(\\([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*\\)(?:\\d*(?:[*/]\\d+)?)?)|([^\\s]+)").matcher(text);
 		List<String> tokens = new ArrayList<>();
 		while (m.find()) {
 			tokens.add(m.group());
@@ -210,9 +211,17 @@ public class SimpleInputParser {
 			if (cm.matches() && CHORD_PATTERN.matcher(cm.group(1)).matches()) {
 				SimpleInputSong.ChordSegment seg = new SimpleInputSong.ChordSegment();
 				seg.line = lineNo;
+				seg.measureNumber = index + 1;
 				seg.chordName = cm.group(1);
 				if (cm.group(2) != null) {
-					int beats = Integer.parseInt(cm.group(2));
+					int position = Integer.parseInt(cm.group(2));
+					if (position < 1 || position > 24) {
+						throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (index + 1) + " 小節：把位必須介於 1 到 24");
+					}
+					seg.position = position;
+				}
+				if (cm.group(3) != null) {
+					int beats = Integer.parseInt(cm.group(3));
 					seg.durationUnits = beats * this.unitsPerBeat; // 拍 → 基礎單位
 				} else {
 					seg.durationUnits = 0; // 無數字：由 pattern 總長決定
@@ -239,11 +248,11 @@ public class SimpleInputParser {
 	/** 解析事件序列（pattern 字串或 token），回傳事件清單 */
 	private List<SimpleInputSong.Event> parseEvents(String text, int lineNo, int measureIndex, SimpleInputSong song) throws SimpleInputFormatException {
 		List<SimpleInputSong.Event> events = new ArrayList<>();
-		// d/u/t/x/z/- [數字] [*|/倍數] [:弦...] 或 弦=品 強制（如 2=3）；(23) 多弦單音；單一數字=單弦
+		// d/u/t/x/z/- [數字] [*|/倍數] [:弦...] 或 弦=品 強制（如 2=3）；(23) 多弦單音（可接 *|/ 時值）；單一數字=單弦
 		Pattern p = Pattern.compile(
 			"(d|u|t|x|z|-)(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?::([1-6]+))?|" +  // 刷/根音/悶/休止
 			"([1-6])=(\\d+)(?:(\\d+)?([*/])(\\d+)|(\\d+))?|" + // 弦=強制品位（如 2=3）
-			"(\\()([1-6]+)(\\))|" +                   // (23)
+			"(\\()([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*)(\\))(?:(\\d+)?([*/])(\\d+))?|" +   // (23) 或 (6 3=4 2=5 1=3) 多弦（可各指定品位），可接 *|/ 時值
 			"([1-6])(?:(\\d+)?([*/])(\\d+)|(\\d+))?"); // 單弦及時值
 		Matcher m = p.matcher(text);
 		int last = 0;
@@ -252,12 +261,12 @@ public class SimpleInputParser {
 				throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：無法解析的符號「" + text.substring(last, m.start()).trim() + "」");
 			}
 			last = m.end();
-			if (m.group(16) != null) { // 單弦
-				addEvent(events, 'n', duration(m.group(17), m.group(18), m.group(19), m.group(20)), m.group(16), lineNo, measureIndex);
+			if (m.group(19) != null) { // 單弦
+				addEvent(events, 'n', duration(m.group(20), m.group(21), m.group(22), m.group(23)), m.group(19), lineNo, measureIndex);
 				continue;
 			}
-			if (m.group(13) != null) { // (23)
-				addEvent(events, 'n', 1, m.group(14), lineNo, measureIndex);
+			if (m.group(13) != null) { // (23) 或 (6 3=4 2=5 1=3)
+				addForcedGroupEvent(events, m.group(14), duration(m.group(16), m.group(17), m.group(18), null), lineNo, measureIndex);
 				continue;
 			}
 			if (m.group(7) != null) { // 2=3 強制品位
@@ -317,6 +326,30 @@ public class SimpleInputParser {
 		ev.strings.add(userString);
 		ev.forcedFrets = new java.util.LinkedHashMap<>();
 		ev.forcedFrets.put(userString, fret);
+		events.add(ev);
+	}
+
+	/** 多弦各指定品位事件（如 (6 3=4 2=5 1=3)）：n 類型 + 多弦 + forcedFrets */
+	private void addForcedGroupEvent(List<SimpleInputSong.Event> events, String spec, double units, int lineNo, int measureIndex) throws SimpleInputFormatException {
+		SimpleInputSong.Event ev = new SimpleInputSong.Event();
+		ev.type = 'n';
+		ev.durationUnits = units;
+		ev.line = lineNo;
+		ev.strings = new ArrayList<>();
+		ev.forcedFrets = new java.util.LinkedHashMap<>();
+		// spec 形如 "6 3=4 2=5 1=3"：純數字弦（無 =）與 弦=品 混合
+		java.util.regex.Matcher sm = java.util.regex.Pattern.compile("([1-6])(?:=(\\d+))?").matcher(spec);
+		while (sm.find()) {
+			int userString = Integer.parseInt(sm.group(1));
+			ev.strings.add(userString);
+			if (sm.group(2) != null) {
+				int fret = Integer.parseInt(sm.group(2));
+				if (fret < 0 || fret > 24) {
+					throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：強制品位 " + fret + " 超出範圍");
+				}
+				ev.forcedFrets.put(userString, fret);
+			}
+		}
 		events.add(ev);
 	}
 

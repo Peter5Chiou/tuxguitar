@@ -29,9 +29,11 @@ public class SimpleInputSong {
 	/** 小節內一個和弦段落：和弦名 + 持續單位 + 事件序列 */
 	public static class ChordSegment {
 		public String chordName;
+		public Integer position; // 指定把位；null = 使用和弦字典原始按型
 		public int durationUnits;
 		public List<Event> events = new ArrayList<>();
 		public int line;
+		public int measureNumber;
 	}
 
 	public static class Measure {
