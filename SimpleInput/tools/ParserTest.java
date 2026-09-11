@@ -91,6 +91,83 @@ public class ParserTest {
 		}
 		System.out.println("OK: parenthesized group with forced frets syntax");
 
+		// 刷速指定 ~N：d2:123~16、u:321~8、x2~64、d~32
+		String strokeSyntax = "M:4/4\nL:1/8\nG d2:123~16 u:321~8 x2~64 d~32\n";
+		SimpleInputSong.ChordSegment strokeSegment = parser.parse(strokeSyntax).measures.get(0).segments.get(0);
+		if (strokeSegment.events.size() != 4
+				|| strokeSegment.events.get(0).durationUnits != 2.0
+				|| strokeSegment.events.get(0).strings.size() != 3
+				|| strokeSegment.events.get(0).strokeDenominator == null
+				|| strokeSegment.events.get(0).strokeDenominator != 16
+				|| strokeSegment.events.get(1).strings.size() != 3
+				|| strokeSegment.events.get(1).strokeDenominator == null
+				|| strokeSegment.events.get(1).strokeDenominator != 8
+				|| strokeSegment.events.get(2).durationUnits != 2.0
+				|| strokeSegment.events.get(2).strokeDenominator == null
+				|| strokeSegment.events.get(2).strokeDenominator != 64
+				|| strokeSegment.events.get(3).strokeDenominator == null
+				|| strokeSegment.events.get(3).strokeDenominator != 32) {
+			throw new AssertionError("stroke speed ~N syntax was parsed incorrectly");
+		}
+		System.out.println("OK: stroke speed ~N syntax");
+
+		// 未指定 ~N 時預設 16 分音符
+		String noStrokeSyntax = "M:4/4\nL:1/8\nG d2 u\n";
+		SimpleInputSong.ChordSegment noStrokeSegment = parser.parse(noStrokeSyntax).measures.get(0).segments.get(0);
+		if (noStrokeSegment.events.get(0).strokeDenominator == null
+				|| noStrokeSegment.events.get(0).strokeDenominator != 16
+				|| noStrokeSegment.events.get(1).strokeDenominator == null
+				|| noStrokeSegment.events.get(1).strokeDenominator != 16) {
+			throw new AssertionError("strokeDenominator should default to 16 when ~N is absent");
+		}
+		System.out.println("OK: strokeDenominator defaults to 16 when ~N absent");
+
+		// 刷速繼承：未指定時預設 16；指定後後續沿用直到再次指定
+		String inheritSyntax = "M:4/4\nL:1/8\nG d~32 u d u d~16 u d\n";
+		SimpleInputSong.ChordSegment inheritSegment = parser.parse(inheritSyntax).measures.get(0).segments.get(0);
+		Integer[] expectedStrokes = {32, 32, 32, 32, 16, 16, 16};
+		if (inheritSegment.events.size() != 7) {
+			throw new AssertionError("expected 7 events, got " + inheritSegment.events.size());
+		}
+		for (int i = 0; i < 7; i++) {
+			if (inheritSegment.events.get(i).strokeDenominator == null
+					|| inheritSegment.events.get(i).strokeDenominator != expectedStrokes[i]) {
+				throw new AssertionError("event " + i + " stroke = " + inheritSegment.events.get(i).strokeDenominator
+					+ ", expected " + expectedStrokes[i]);
+			}
+		}
+		System.out.println("OK: stroke speed inheritance (default 16, carry-forward)");
+
+		// 刷速繼承跨小節：指定後下一小節沿用
+		String inheritAcrossSyntax = "M:4/4\nL:1/8\nG(4) d~8 u d u d u d u | C(4) d u d u d u d u |\n";
+		SimpleInputSong inheritAcrossSong = parser.parse(inheritAcrossSyntax);
+		SimpleInputSong.ChordSegment seg1 = inheritAcrossSong.measures.get(0).segments.get(0);
+		SimpleInputSong.ChordSegment seg2 = inheritAcrossSong.measures.get(1).segments.get(0);
+		if (seg1.events.get(0).strokeDenominator != 8
+				|| seg2.events.get(0).strokeDenominator != 8
+				|| seg2.events.get(3).strokeDenominator != 8) {
+			throw new AssertionError("stroke speed should carry across measures");
+		}
+		System.out.println("OK: stroke speed inheritance across measures");
+
+		// 錯誤案例：刷速超出範圍（非 2 的冪）
+		String badStroke = "M:4/4\nL:1/8\nG d~3\n";
+		try {
+			parser.parse(badStroke);
+			System.out.println("FAIL: should have thrown for invalid stroke speed");
+		} catch (SimpleInputFormatException e) {
+			System.out.println("OK (error expected): " + e.getMessage());
+		}
+
+		// 錯誤案例：刷速超出範圍（>64）
+		String badStroke2 = "M:4/4\nL:1/8\nG d~128\n";
+		try {
+			parser.parse(badStroke2);
+			System.out.println("FAIL: should have thrown for stroke speed > 64");
+		} catch (SimpleInputFormatException e) {
+			System.out.println("OK (error expected): " + e.getMessage());
+		}
+
 		// 錯誤案例：過拍
 		String bad = "M:4/4\nL:1/8\n@basic = d2u2d2u2\nC(2) @basic @basic | G(4) d4 ||\n";
 		try {

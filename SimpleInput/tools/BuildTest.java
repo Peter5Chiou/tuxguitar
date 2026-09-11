@@ -30,6 +30,51 @@ public class BuildTest {
 			throw new AssertionError("forced fret was not applied to user string 2");
 		}
 
+		// 刷速指定 ~N：驗證 TGStroke value 依 ~N 設定
+		String strokeSrc = String.join("\n",
+			"M:4/4",
+			"L:1/8",
+			"",
+			"G(4) d~16 u~8 d~32 x~64 d~16 u~8 d~32 x~64 |",
+			"");
+		SimpleInputSong strokeParsed = new SimpleInputParser().parse(strokeSrc);
+		TGSong strokeSong = new SimpleInputSongBuilder(new TGFactory()).build(strokeParsed);
+		TGMeasure strokeMeasure = strokeSong.getTrack(0).getMeasure(0);
+		int[] expected = {TGDuration.SIXTEENTH, TGDuration.EIGHTH, TGDuration.THIRTY_SECOND, TGDuration.SIXTY_FOURTH};
+		if (strokeMeasure.countBeats() != 8) {
+			throw new AssertionError("expected 8 beats for stroke test, got " + strokeMeasure.countBeats());
+		}
+		for (int i = 0; i < 4; i++) {
+			TGBeat b = strokeMeasure.getBeat(i);
+			if (b.getStroke().getValue() != expected[i]) {
+				throw new AssertionError("beat " + i + " stroke value = " + b.getStroke().getValue() + ", expected " + expected[i]);
+			}
+		}
+		System.out.println("OK: stroke speed ~N applied to TGStroke");
+
+		// 刷速繼承：d~32 u d u → 後續 udu 都是 32；d~16 後回到 16
+		String inheritSrc = String.join("\n",
+			"M:4/4",
+			"L:1/8",
+			"",
+			"G(4) d~32 u d u d~16 u d u |",
+			"");
+		SimpleInputSong inheritParsed = new SimpleInputParser().parse(inheritSrc);
+		TGSong inheritSong = new SimpleInputSongBuilder(new TGFactory()).build(inheritParsed);
+		TGMeasure inheritMeasure = inheritSong.getTrack(0).getMeasure(0);
+		int[] inheritExpected = {TGDuration.THIRTY_SECOND, TGDuration.THIRTY_SECOND, TGDuration.THIRTY_SECOND, TGDuration.THIRTY_SECOND,
+			TGDuration.SIXTEENTH, TGDuration.SIXTEENTH, TGDuration.SIXTEENTH, TGDuration.SIXTEENTH};
+		if (inheritMeasure.countBeats() != 8) {
+			throw new AssertionError("expected 8 beats for inheritance test, got " + inheritMeasure.countBeats());
+		}
+		for (int i = 0; i < 8; i++) {
+			TGBeat b = inheritMeasure.getBeat(i);
+			if (b.getStroke().getValue() != inheritExpected[i]) {
+				throw new AssertionError("inherit beat " + i + " stroke value = " + b.getStroke().getValue() + ", expected " + inheritExpected[i]);
+			}
+		}
+		System.out.println("OK: stroke speed inheritance applied to TGStroke");
+
 		System.out.println("tracks=" + song.countTracks());
 		TGTrack track = song.getTrack(0);
 		System.out.println("measures=" + track.countMeasures() + " strings=" + track.stringCount());

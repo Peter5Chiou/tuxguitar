@@ -140,7 +140,7 @@ public class SimpleInputSongBuilder {
 		if (events.isEmpty()) {
 			// 無 pattern：一次 d 刷全和弦，持續 segmentUnits
 			if (chordInfo != null) {
-				buildStrumBeat(manager, measure, src, chordInfo, start, Math.round(segmentUnits * unitTime), true, null, null, segment.line, segmentContext(segment));
+				buildStrumBeat(manager, measure, src, chordInfo, start, Math.round(segmentUnits * unitTime), true, null, null, null, segment.line, segmentContext(segment));
 				addChordToBeat(measure, start, chordInfo, segment.chordName);
 			} else {
 				buildRestBeat(measure, start, Math.round(segmentUnits * unitTime));
@@ -174,13 +174,13 @@ public class SimpleInputSongBuilder {
 					if (chordInfo == null) {
 						throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：刷弦事件需要先指定和弦");
 					}
-					buildStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.type == 'd', ev.strings, null, ev.line, segmentContext(segment));
+					buildStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.type == 'd', ev.strings, null, ev.strokeDenominator, ev.line, segmentContext(segment));
 					break;
 				case 'x':
 					if (chordInfo == null) {
 						throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：x 事件需要先指定和弦");
 					}
-					buildMutedStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.strings, ev.line, segmentContext(segment));
+					buildMutedStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.strings, ev.strokeDenominator, ev.line, segmentContext(segment));
 					break;
 				case 't':
 					if (chordInfo == null) {
@@ -216,9 +216,9 @@ public class SimpleInputSongBuilder {
 		return start + Math.round(segmentUnits * unitTime);
 	}
 
-	/** 下/上刷 → 多音 beat + TGStroke。userStrings 為 null 時刷全和弦；forcedFrets 覆寫個別弦品位的強制 */
+	/** 下/上刷 → 多音 beat + TGStroke。userStrings 為 null 時刷全和弦；forcedFrets 覆寫個別弦品位的強制；strokeDenominator 指定刷速（~N） */
 	private void buildStrumBeat(TGSongManager manager, TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, boolean down, List<Integer> userStrings, Map<Integer, Integer> forcedFrets, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, boolean down, List<Integer> userStrings, Map<Integer, Integer> forcedFrets, Integer strokeDenominator, int line, String context) throws SimpleInputFormatException {
 
 		TGBeat beat = getBeat(measure, preciseStart);
 		TGVoice voice = beat.getVoice(0);
@@ -244,12 +244,16 @@ public class SimpleInputSongBuilder {
 			voice.addNote(note);
 		}
 		beat.getStroke().setDirection(down ? TGStroke.STROKE_DOWN : TGStroke.STROKE_UP);
-		beat.getStroke().setValue(strokeValue(TGDuration.toTime(preciseDuration)));
+		if (strokeDenominator != null) {
+			beat.getStroke().setValue(strokeValueForDenominator(strokeDenominator));
+		} else {
+			beat.getStroke().setValue(strokeValue(TGDuration.toTime(preciseDuration)));
+		}
 	}
 
 	/** x 短刷：刷 根音 + 根音旁靠高音側的一根弦（2 弦） */
 	private void buildMutedStrumBeat(TGSongManager manager, TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> userStrings, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> userStrings, Integer strokeDenominator, int line, String context) throws SimpleInputFormatException {
 
 		// 根音 + 根音往高音方向的一根弦（實際弦號 = rootString - 1）
 		// 注意：buildStrumBeat 的 userStrings 是「使用者編號」，實際→使用者用同一映射（1↔3 對調、其餘不變）
@@ -262,7 +266,7 @@ public class SimpleInputSongBuilder {
 		} else {
 			userNoStrings.add(SimpleStringUtil.toRealString(root + 1)); // 根音已在第 1 弦時，往低音側取
 		}
-		buildStrumBeat(manager, measure, src, chordInfo, preciseStart, preciseDuration, true, userNoStrings, null, line, context);
+		buildStrumBeat(manager, measure, src, chordInfo, preciseStart, preciseDuration, true, userNoStrings, null, strokeDenominator, line, context);
 	}
 
 	/** 套用強制品位：userStringNo（使用者編號）符合時覆寫 fret */
@@ -395,6 +399,18 @@ public class SimpleInputSongBuilder {
 			return TGDuration.SIXTEENTH;
 		}
 		return TGDuration.THIRTY_SECOND;
+	}
+
+	/** 依 ~N 刷速（N=4~64 分音符）轉成 TGStroke value */
+	private int strokeValueForDenominator(int denominator) {
+		switch (denominator) {
+			case 4: return TGDuration.QUARTER;
+			case 8: return TGDuration.EIGHTH;
+			case 16: return TGDuration.SIXTEENTH;
+			case 32: return TGDuration.THIRTY_SECOND;
+			case 64: return TGDuration.SIXTY_FOURTH;
+			default: return TGDuration.SIXTEENTH;
+		}
 	}
 
 	private TGBeat getBeat(TGMeasure measure, long preciseStart) {

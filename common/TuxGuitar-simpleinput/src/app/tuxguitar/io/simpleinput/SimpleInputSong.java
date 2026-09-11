@@ -23,6 +23,7 @@ public class SimpleInputSong {
 		public double durationUnits;  // 單位數（縮放後）
 		public List<Integer> strings; // 使用者編號（1~6），null = 全和弦
 		public Map<Integer, Integer> forcedFrets; // 使用者弦號 → 強制品位（如 2:3），可為 null
+		public Integer strokeDenominator; // 刷速（~N，N=4~64 分音符）；null = 依事件時值自動推導
 		public int line;           // 來源行（錯誤報告用）
 	}
 

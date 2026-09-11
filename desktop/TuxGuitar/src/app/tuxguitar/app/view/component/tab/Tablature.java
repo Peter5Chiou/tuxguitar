@@ -7,6 +7,8 @@ import app.tuxguitar.app.TuxGuitar;
 import app.tuxguitar.app.document.TGDocument;
 import app.tuxguitar.app.system.config.TGConfigKeys;
 import app.tuxguitar.app.system.config.TGConfigManager;
+import app.tuxguitar.app.system.icons.TGSkinManager;
+import app.tuxguitar.app.system.properties.TGPropertiesUIUtil;
 import app.tuxguitar.app.transport.TGTransport;
 import app.tuxguitar.app.ui.TGApplication;
 import app.tuxguitar.app.view.component.tab.edit.EditorKit;
@@ -26,6 +28,7 @@ import app.tuxguitar.song.models.TGMeasure;
 import app.tuxguitar.song.models.TGMeasureHeader;
 import app.tuxguitar.song.models.TGNote;
 import app.tuxguitar.song.models.TGSong;
+import app.tuxguitar.ui.resource.UIColorModel;
 import app.tuxguitar.ui.resource.UIPainter;
 import app.tuxguitar.ui.resource.UIRectangle;
 import app.tuxguitar.ui.resource.UIResourceFactory;
@@ -33,6 +36,7 @@ import app.tuxguitar.ui.resource.UISize;
 import app.tuxguitar.util.TGBeatRange;
 import app.tuxguitar.util.TGContext;
 import app.tuxguitar.util.TGNoteRange;
+import app.tuxguitar.util.properties.TGProperties;
 
 public class Tablature implements TGController {
 
@@ -200,10 +204,15 @@ public class Tablature implements TGController {
 
 	public void loadCaretStyles() {
 		TGConfigManager config = TGConfigManager.getInstance(this.context);
+		TGProperties skinProperties = TGSkinManager.getInstance(this.context).getCurrentSkinProperties();
 
-		getCaret().setColorCurrentVoice(config.getColorModelConfigValue(TGConfigKeys.COLOR_CARET_CURRENT_VOICE));
-		getCaret().setColorOtherVoice(config.getColorModelConfigValue(TGConfigKeys.COLOR_CARET_OTHER_VOICE));
+		getCaret().setColorCurrentVoice(getColor(config, skinProperties, "color.caret.voice.current", TGConfigKeys.COLOR_CARET_CURRENT_VOICE));
+		getCaret().setColorOtherVoice(getColor(config, skinProperties, "color.caret.voice.other", TGConfigKeys.COLOR_CARET_OTHER_VOICE));
 		getCaret().setAlpha(config.getIntegerValue(TGConfigKeys.COLOR_CARET_ALPHA));
+	}
+
+	private static UIColorModel getColor(TGConfigManager config, TGProperties skinProperties, String skinKey, String configKey) {
+		return TGPropertiesUIUtil.getColorModelValue(config.getContext(), skinProperties, skinKey, config.getColorModelConfigValue(configKey));
 	}
 
 	public void scale(Float scale) {

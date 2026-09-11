@@ -20,10 +20,12 @@ public class SimpleInputParser {
 
 	private int totalUnitsPerMeasure; // 每小節的基礎單位數
 	private int unitsPerBeat;         // 每拍的基礎單位數 = unitDenominator / denominator
+	private int currentStrokeDenominator = 16; // 目前刷速（~N），預設 16 分音符；指定後全曲沿用直到再次指定
 
 	public SimpleInputSong parse(String source) throws SimpleInputFormatException {
 		SimpleInputSong song = new SimpleInputSong();
 		List<String> bodyLines = new ArrayList<>();
+		this.currentStrokeDenominator = 16; // 每次 parse 重置刷速狀態（預設 16 分音符）
 
 		String[] lines = source.split("\n", -1);
 		boolean inBody = false;
@@ -248,9 +250,9 @@ public class SimpleInputParser {
 	/** 解析事件序列（pattern 字串或 token），回傳事件清單 */
 	private List<SimpleInputSong.Event> parseEvents(String text, int lineNo, int measureIndex, SimpleInputSong song) throws SimpleInputFormatException {
 		List<SimpleInputSong.Event> events = new ArrayList<>();
-		// d/u/t/x/z/- [數字] [*|/倍數] [:弦...] 或 弦=品 強制（如 2=3）；(23) 多弦單音（可接 *|/ 時值）；單一數字=單弦
+		// d/u/t/x/z/- [數字] [*|/倍數] [:弦...] [~刷速] 或 弦=品 強制（如 2=3）；(23) 多弦單音（可接 *|/ 時值）；單一數字=單弦
 		Pattern p = Pattern.compile(
-			"(d|u|t|x|z|-)(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?::([1-6]+))?|" +  // 刷/根音/悶/休止
+			"(d|u|t|x|z|-)(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?::([1-6]+))?(?:~(\\d+))?|" +  // 刷/根音/悶/休止（可接 ~N 刷速）
 			"([1-6])=(\\d+)(?:(\\d+)?([*/])(\\d+)|(\\d+))?|" + // 弦=強制品位（如 2=3）
 			"(\\()([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*)(\\))(?:(\\d+)?([*/])(\\d+))?|" +   // (23) 或 (6 3=4 2=5 1=3) 多弦（可各指定品位），可接 *|/ 時值
 			"([1-6])(?:(\\d+)?([*/])(\\d+)|(\\d+))?"); // 單弦及時值
@@ -261,22 +263,22 @@ public class SimpleInputParser {
 				throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：無法解析的符號「" + text.substring(last, m.start()).trim() + "」");
 			}
 			last = m.end();
-			if (m.group(19) != null) { // 單弦
-				addEvent(events, 'n', duration(m.group(20), m.group(21), m.group(22), m.group(23)), m.group(19), lineNo, measureIndex);
+			if (m.group(20) != null) { // 單弦
+				addEvent(events, 'n', duration(m.group(21), m.group(22), m.group(23), m.group(24)), m.group(20), lineNo, measureIndex);
 				continue;
 			}
-			if (m.group(13) != null) { // (23) 或 (6 3=4 2=5 1=3)
-				addForcedGroupEvent(events, m.group(14), duration(m.group(16), m.group(17), m.group(18), null), lineNo, measureIndex);
+			if (m.group(14) != null) { // (23) 或 (6 3=4 2=5 1=3)
+				addForcedGroupEvent(events, m.group(15), duration(m.group(17), m.group(18), m.group(19), null), lineNo, measureIndex);
 				continue;
 			}
-			if (m.group(7) != null) { // 2=3 強制品位
-				addForcedEvent(events, Integer.parseInt(m.group(7)), Integer.parseInt(m.group(8)),
-					duration(m.group(9), m.group(10), m.group(11), m.group(12)), lineNo, measureIndex);
+			if (m.group(8) != null) { // 2=3 強制品位
+				addForcedEvent(events, Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9)),
+					duration(m.group(10), m.group(11), m.group(12), m.group(13)), lineNo, measureIndex);
 				continue;
 			}
 			char type = m.group(1).charAt(0);
 			double units = duration(m.group(2), m.group(3), m.group(4), m.group(5));
-			addEvent(events, type == '-' ? 'r' : type, units, m.group(6), lineNo, measureIndex);
+			addEvent(events, type == '-' ? 'r' : type, units, m.group(6), lineNo, measureIndex, m.group(7));
 		}
 		if (!text.substring(last).trim().isEmpty()) {
 			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：無法解析的符號「" + text.substring(last).trim() + "」");
@@ -297,6 +299,10 @@ public class SimpleInputParser {
 	}
 
 	private void addEvent(List<SimpleInputSong.Event> events, char type, double units, String strings, int lineNo, int measureIndex) throws SimpleInputFormatException {
+		addEvent(events, type, units, strings, lineNo, measureIndex, null);
+	}
+
+	private void addEvent(List<SimpleInputSong.Event> events, char type, double units, String strings, int lineNo, int measureIndex, String strokeDenominator) throws SimpleInputFormatException {
 		if (units <= 0) {
 			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：時值必須為正數");
 		}
@@ -309,6 +315,17 @@ public class SimpleInputParser {
 			for (char c : strings.toCharArray()) {
 				ev.strings.add(Character.getNumericValue(c));
 			}
+		}
+		if (strokeDenominator != null) {
+			int den = Integer.parseInt(strokeDenominator);
+			if (den < 4 || den > 64 || (den & (den - 1)) != 0) {
+				throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：刷速 ~" + den + " 必須是 4 到 64 之間的 2 的冪");
+			}
+			this.currentStrokeDenominator = den; // 更新全曲刷速狀態
+		}
+		// 刷法事件（d/u/x）套用目前刷速；其餘事件（t/n/r）不套用
+		if (ev.type == 'd' || ev.type == 'u' || ev.type == 'x') {
+			ev.strokeDenominator = this.currentStrokeDenominator;
 		}
 		events.add(ev);
 	}
