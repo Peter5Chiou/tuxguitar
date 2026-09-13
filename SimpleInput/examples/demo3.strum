@@ -4,8 +4,13 @@ L:1/8
 Q:1/4=90
 K:C
 
-@basic  = d2~32 u2 d2~64 u2
+@basic  =  [t 1 2] [3 2 1]
+@f4 = d d d d d d d d
 @island = d2 u d u d2 u
 @arp    = t (23) 1 (23) 1 (23) 1 (23)
 
-G(4) @island
+C(2) @basic Cm(2) @basic | F(2) @basic  C(2) @basic |
+F(2) @basic C(2) @basic | Dm(2)  @basic G(2) @basic |
+C(2) @basic Em(2) @basic | F(2) @basic C(2) @basic |
+F(2) @basic C(2) @basic |
+

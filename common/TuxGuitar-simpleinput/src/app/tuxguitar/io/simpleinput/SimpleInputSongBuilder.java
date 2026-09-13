@@ -10,6 +10,7 @@ import app.tuxguitar.song.managers.TGSongManager;
 import app.tuxguitar.song.models.TGBeat;
 import app.tuxguitar.song.models.TGChannel;
 import app.tuxguitar.song.models.TGChord;
+import app.tuxguitar.song.models.TGDivisionType;
 import app.tuxguitar.song.models.TGDuration;
 import app.tuxguitar.song.models.TGMeasure;
 import app.tuxguitar.song.models.TGMeasureHeader;
@@ -140,10 +141,10 @@ public class SimpleInputSongBuilder {
 		if (events.isEmpty()) {
 			// 無 pattern：一次 d 刷全和弦，持續 segmentUnits
 			if (chordInfo != null) {
-				buildStrumBeat(manager, measure, src, chordInfo, start, Math.round(segmentUnits * unitTime), true, null, null, null, segment.line, segmentContext(segment));
+				buildStrumBeat(manager, measure, src, chordInfo, start, Math.round(segmentUnits * unitTime), true, null, null, null, 0, segment.line, segmentContext(segment));
 				addChordToBeat(measure, start, chordInfo, segment.chordName);
 			} else {
-				buildRestBeat(measure, start, Math.round(segmentUnits * unitTime));
+				buildRestBeat(measure, start, Math.round(segmentUnits * unitTime), 0);
 			}
 			return start + Math.round(segmentUnits * unitTime);
 		}
@@ -160,8 +161,9 @@ public class SimpleInputSongBuilder {
 			boolean isLast = i == events.size() - 1;
 
 			long evTime = Math.round(ev.durationUnits * scale * unitTime);
-			if (isLast || evTime < unitTime / 2) {
-				evTime = remaining; // 誤差補償：最後一個事件補齊
+			// 誤差補償：最後一個事件補齊；連音群組事件時值精確，不觸發小時值補齊
+			if (isLast || (ev.tuplet == 0 && evTime < unitTime / 2)) {
+				evTime = remaining;
 			}
 			if (evTime > remaining) {
 				evTime = remaining;
@@ -174,19 +176,19 @@ public class SimpleInputSongBuilder {
 					if (chordInfo == null) {
 						throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：刷弦事件需要先指定和弦");
 					}
-					buildStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.type == 'd', ev.strings, null, ev.strokeDenominator, ev.line, segmentContext(segment));
+					buildStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.type == 'd', ev.strings, null, ev.strokeDenominator, ev.tuplet, ev.line, segmentContext(segment));
 					break;
 				case 'x':
 					if (chordInfo == null) {
 						throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：x 事件需要先指定和弦");
 					}
-					buildMutedStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.strings, ev.strokeDenominator, ev.line, segmentContext(segment));
+					buildMutedStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.strings, ev.strokeDenominator, ev.tuplet, ev.line, segmentContext(segment));
 					break;
 				case 't':
 					if (chordInfo == null) {
 						throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：t 事件需要先指定和弦");
 					}
-					buildNoteBeat(measure, src, chordInfo, current, evTime, chordInfo.rootString, null, ev.line, segmentContext(segment));
+					buildNoteBeat(measure, src, chordInfo, current, evTime, chordInfo.rootString, null, ev.tuplet, ev.line, segmentContext(segment));
 					break;
 				case 'n': {
 					if (ev.strings == null || ev.strings.isEmpty()) {
@@ -195,14 +197,14 @@ public class SimpleInputSongBuilder {
 					if (ev.strings.size() == 1) {
 						int userString = ev.strings.get(0);
 						int realString = SimpleStringUtil.toRealString(userString);
-						buildNoteBeat(measure, src, chordInfo, current, evTime, realString, ev.forcedFrets, ev.line, segmentContext(segment));
+						buildNoteBeat(measure, src, chordInfo, current, evTime, realString, ev.forcedFrets, ev.tuplet, ev.line, segmentContext(segment));
 					} else {
-						buildMultiNoteBeat(measure, src, chordInfo, current, evTime, SimpleStringUtil.toRealStrings(ev.strings), ev.forcedFrets, ev.line, segmentContext(segment));
+						buildMultiNoteBeat(measure, src, chordInfo, current, evTime, SimpleStringUtil.toRealStrings(ev.strings), ev.forcedFrets, ev.tuplet, ev.line, segmentContext(segment));
 					}
 					break;
 				}
 				case 'r':
-					buildRestBeat(measure, current, evTime);
+					buildRestBeat(measure, current, evTime, ev.tuplet);
 					break;
 				default:
 					throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：未知事件類型 " + ev.type);
@@ -216,14 +218,14 @@ public class SimpleInputSongBuilder {
 		return start + Math.round(segmentUnits * unitTime);
 	}
 
-	/** 下/上刷 → 多音 beat + TGStroke。userStrings 為 null 時刷全和弦；forcedFrets 覆寫個別弦品位的強制；strokeDenominator 指定刷速（~N） */
+	/** 下/上刷 → 多音 beat + TGStroke。userStrings 為 null 時刷全和弦；forcedFrets 覆寫個別弦品位的強制；strokeDenominator 指定刷速（~N）；tuplet 連音數（0=無） */
 	private void buildStrumBeat(TGSongManager manager, TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, boolean down, List<Integer> userStrings, Map<Integer, Integer> forcedFrets, Integer strokeDenominator, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, boolean down, List<Integer> userStrings, Map<Integer, Integer> forcedFrets, Integer strokeDenominator, int tuplet, int line, String context) throws SimpleInputFormatException {
 
 		TGBeat beat = getBeat(measure, preciseStart);
 		TGVoice voice = beat.getVoice(0);
 		voice.setEmpty(false);
-		setDuration(voice, preciseDuration);
+		setDuration(voice, preciseDuration, tuplet);
 
 		// 決定要刷的弦：指定弦（使用者編號→實際弦）或全和弦發音弦
 		List<Integer> realStrings;
@@ -253,7 +255,7 @@ public class SimpleInputSongBuilder {
 
 	/** x 短刷：刷 根音 + 根音旁靠高音側的一根弦（2 弦） */
 	private void buildMutedStrumBeat(TGSongManager manager, TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> userStrings, Integer strokeDenominator, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> userStrings, Integer strokeDenominator, int tuplet, int line, String context) throws SimpleInputFormatException {
 
 		// 根音 + 根音往高音方向的一根弦（實際弦號 = rootString - 1）
 		// 注意：buildStrumBeat 的 userStrings 是「使用者編號」，實際→使用者用同一映射（1↔3 對調、其餘不變）
@@ -266,7 +268,7 @@ public class SimpleInputSongBuilder {
 		} else {
 			userNoStrings.add(SimpleStringUtil.toRealString(root + 1)); // 根音已在第 1 弦時，往低音側取
 		}
-		buildStrumBeat(manager, measure, src, chordInfo, preciseStart, preciseDuration, true, userNoStrings, null, strokeDenominator, line, context);
+		buildStrumBeat(manager, measure, src, chordInfo, preciseStart, preciseDuration, true, userNoStrings, null, strokeDenominator, tuplet, line, context);
 	}
 
 	/** 套用強制品位：userStringNo（使用者編號）符合時覆寫 fret */
@@ -277,9 +279,9 @@ public class SimpleInputSongBuilder {
 		return fret;
 	}
 
-	/** 根音/單弦單音。forcedFrets 有該弦（使用者編號）時覆寫品位 */
+	/** 根音/單弦單音。forcedFrets 有該弦（使用者編號）時覆寫品位；tuplet 連音數（0=無） */
 	private void buildNoteBeat(TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, int realString, Map<Integer, Integer> forcedFrets, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, int realString, Map<Integer, Integer> forcedFrets, int tuplet, int line, String context) throws SimpleInputFormatException {
 		int fret;
 		if (chordInfo != null) {
 			fret = chordInfo.frets[6 - realString];
@@ -299,20 +301,20 @@ public class SimpleInputSongBuilder {
 		TGBeat beat = getBeat(measure, preciseStart);
 		TGVoice voice = beat.getVoice(0);
 		voice.setEmpty(false);
-		setDuration(voice, preciseDuration);
+		setDuration(voice, preciseDuration, tuplet);
 		TGNote note = this.factory.newNote();
 		note.setString(realString);
 		note.setValue(fret);
 		voice.addNote(note);
 	}
 
-	/** 同時彈多根弦。forcedFrets（使用者弦號→品位）覆寫個別弦品位 */
+	/** 同時彈多根弦。forcedFrets（使用者弦號→品位）覆寫個別弦品位；tuplet 連音數（0=無） */
 	private void buildMultiNoteBeat(TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> realStrings, Map<Integer, Integer> forcedFrets, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> realStrings, Map<Integer, Integer> forcedFrets, int tuplet, int line, String context) throws SimpleInputFormatException {
 		TGBeat beat = getBeat(measure, preciseStart);
 		TGVoice voice = beat.getVoice(0);
 		voice.setEmpty(false);
-		setDuration(voice, preciseDuration);
+		setDuration(voice, preciseDuration, tuplet);
 		for (Integer realString : realStrings) {
 			int fret = 0;
 			if (chordInfo != null) {
@@ -335,12 +337,12 @@ public class SimpleInputSongBuilder {
 		}
 	}
 
-	/** 休止 beat */
-	private void buildRestBeat(TGMeasure measure, long preciseStart, long preciseDuration) {
+	/** 休止 beat；tuplet 連音數（0=無） */
+	private void buildRestBeat(TGMeasure measure, long preciseStart, long preciseDuration, int tuplet) {
 		TGBeat beat = getBeat(measure, preciseStart);
 		TGVoice voice = beat.getVoice(0);
 		voice.setEmpty(false);
-		setDuration(voice, preciseDuration);
+		setDuration(voice, preciseDuration, tuplet);
 		// 無 note = rest voice
 	}
 
@@ -382,10 +384,31 @@ public class SimpleInputSongBuilder {
 	}
 
 	private void setDuration(TGVoice voice, long preciseTime) {
-		TGDuration d = TGDuration.fromTime(this.factory, TGDuration.toTime(preciseTime));
+		setDuration(voice, preciseTime, 0);
+	}
+
+	/** 設定 voice 時值；tuplet>0 時套用連音 division type（3/5/6） */
+	private void setDuration(TGVoice voice, long preciseTime, int tuplet) {
+		int enters = 1;
+		int times = 1;
+		if (tuplet > 0) {
+			switch (tuplet) {
+				case 3: enters = 3; times = 2; break;
+				case 5: enters = 5; times = 4; break;
+				case 6: enters = 6; times = 4; break;
+				default: break;
+			}
+		}
+		long untupletedPreciseTime = preciseTime * enters / times;
+		TGDuration d = TGDuration.fromTime(this.factory, TGDuration.toTime(untupletedPreciseTime));
 		voice.getDuration().setValue(d.getValue());
 		voice.getDuration().setDotted(d.isDotted());
 		voice.getDuration().setDoubleDotted(d.isDoubleDotted());
+		if (tuplet > 0) {
+			TGDivisionType dt = voice.getDuration().getDivision();
+			dt.setEnters(enters);
+			dt.setTimes(times);
+		}
 	}
 
 	private int strokeValue(long duration) {

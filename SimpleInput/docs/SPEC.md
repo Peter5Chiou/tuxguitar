@@ -52,6 +52,18 @@ G(2) @basic | C(2) @island G(2) @basic | Am(4) @arp | F(2) @basic C(2) @basic ||
 
 `~N` 只影響刷弦的 TGStroke 速度標示，不影響事件本身時值。N 必須是 4 到 64 之間的 2 的冪（4、8、16、32、64），否則報錯。
 
+### 連音群組（`[..]`）
+
+用方括號 `[..]` 包住多個事件，這些事件**平均分在 1 拍**（以 `M:` 分母為一拍）：
+
+| 寫法 | 意思 |
+| --- | --- |
+| `[t 1 2]` | 三連音指法（3 個事件分 1 拍） |
+| `[x x x]` | 三連音短刷 |
+| `[d u d u d u]` | 六連音刷法（6 個事件分 1 拍） |
+
+群組內事件數**必須是 3、5 或 6**（對應 TuxGuitar 支援的三/五/六連音），否則報錯。群組內事件可用空格分隔，事件語法與一般事件相同。
+
 ## 3. 時值與和弦語意
 
 - 時值模型：
@@ -116,6 +128,7 @@ G(2) @basic | C(2) @island G(2) @basic | Am(4) @arp | F(2) @basic C(2) @basic ||
   - d/u → 和弦所有發音弦各一顆 `TGNote`（fret 來自和弦字典），`TGBeat` 掛 `TGStroke`。刷速 `~N` 指定時用對應的 TGStroke value；未指定時預設 16 分音符（並沿用先前指定的刷速）。
   - t → 根音弦一顆 note；n / (ab) → 對應弦 note。
   - z / - → 休止 beat（無 note）。
+  - 連音群組 `[..]` 的事件 → 每個事件一個 `TGBeat`，時值 = 1 拍 / 事件數，並在 `TGDuration` 的 `TGDivisionType` 設定連音（3→3/2、5→5/4、6→6/4）。
   - 和弦出現的第一個 beat 掛 `TGChord`（和弦圖顯示）。
 - `Q:` → `TGTempo`；`M:` → `TGTimeSignature`；`L:` 決定 1 單位 = `TGDuration`（1/8 → EIGHTH）。
 - 小節 → `TGMeasure`/`TGMeasureHeader`，依拍號切分；弱起小節依實際單位數建 header。

@@ -75,6 +75,43 @@ public class BuildTest {
 		}
 		System.out.println("OK: stroke speed inheritance applied to TGStroke");
 
+		// 連音群組 [..]：驗證 TGDivisionType 套用（三連音 3/2、六連音 6/4）
+		String tupletSrc = String.join("\n",
+			"M:4/4",
+			"L:1/8",
+			"",
+			"G(4) [t 1 2] [d u d u d u] [t 1 2] [d u d u d u] |",
+			"");
+		SimpleInputSong tupletParsed = new SimpleInputParser().parse(tupletSrc);
+		TGSong tupletSong = new SimpleInputSongBuilder(new TGFactory()).build(tupletParsed);
+		TGMeasure tupletMeasure = tupletSong.getTrack(0).getMeasure(0);
+		if (tupletMeasure.countBeats() != 18) {
+			throw new AssertionError("expected 18 beats for tuplet test, got " + tupletMeasure.countBeats());
+		}
+		// 前 3 個 beat：三連音（enters=3, times=2, base value=EIGHTH）
+		for (int i = 0; i < 3; i++) {
+			TGVoice v = tupletMeasure.getBeat(i).getVoice(0);
+			TGDivisionType dt = v.getDuration().getDivision();
+			if (dt.getEnters() != 3 || dt.getTimes() != 2) {
+				throw new AssertionError("triplet beat " + i + " division enters=" + dt.getEnters() + " times=" + dt.getTimes());
+			}
+			if (v.getDuration().getValue() != TGDuration.EIGHTH) {
+				throw new AssertionError("triplet beat " + i + " duration value=" + v.getDuration().getValue() + ", expected " + TGDuration.EIGHTH);
+			}
+		}
+		// 接著 6 個 beat：六連音（enters=6, times=4, base value=SIXTEENTH）
+		for (int i = 3; i < 9; i++) {
+			TGVoice v = tupletMeasure.getBeat(i).getVoice(0);
+			TGDivisionType dt = v.getDuration().getDivision();
+			if (dt.getEnters() != 6 || dt.getTimes() != 4) {
+				throw new AssertionError("sextuplet beat " + i + " division enters=" + dt.getEnters() + " times=" + dt.getTimes());
+			}
+			if (v.getDuration().getValue() != TGDuration.SIXTEENTH) {
+				throw new AssertionError("sextuplet beat " + i + " duration value=" + v.getDuration().getValue() + ", expected " + TGDuration.SIXTEENTH);
+			}
+		}
+		System.out.println("OK: tuplet division type and duration value applied to TGDuration");
+
 		System.out.println("tracks=" + song.countTracks());
 		TGTrack track = song.getTrack(0);
 		System.out.println("measures=" + track.countMeasures() + " strings=" + track.stringCount());

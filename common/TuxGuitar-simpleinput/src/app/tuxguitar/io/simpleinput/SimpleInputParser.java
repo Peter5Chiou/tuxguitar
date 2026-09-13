@@ -179,7 +179,8 @@ public class SimpleInputParser {
 
 			// 以和弦記號切分段落：和弦名 + 可選把位 + 可選括號拍數 + 後續事件
 			// 括號群組 (6 3 2 1) 或 (6 3=4 2=5 1=3) 內部可含空格，需視為單一 token
-		Matcher m = Pattern.compile("([A-G][A-Za-z0-9#b]*(?:@\\d+)?(?:\\(\\d+\\))?)|(@[A-Za-z0-9_]+)|(\\([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*\\)(?:\\d*(?:[*/]\\d+)?)?)|([^\\s]+)").matcher(text);
+			// 連音群組 [..] 內部可含空格，需視為單一 token
+		Matcher m = Pattern.compile("([A-G][A-Za-z0-9#b]*(?:@\\d+)?(?:\\(\\d+\\))?)|(@[A-Za-z0-9_]+)|(\\([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*\\)(?:\\d*(?:[*/]\\d+)?)?)|(\\[[^\\]]*\\])|([^\\s]+)").matcher(text);
 		List<String> tokens = new ArrayList<>();
 		while (m.find()) {
 			tokens.add(m.group());
@@ -195,7 +196,7 @@ public class SimpleInputParser {
 					throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (index + 1) + " 小節：未定義的刷法「@" + name + "」");
 				}
 				// @ 展開：事件歸屬於前一個和弦段落（或獨立段落）
-				List<SimpleInputSong.Event> events = parseEvents(def, lineNo, index, song);
+				List<SimpleInputSong.Event> events = parseEventSequence(def, lineNo, index, song);
 				if (!measure.segments.isEmpty()) {
 					measure.segments.get(measure.segments.size() - 1).events.addAll(events);
 				} else {
@@ -204,6 +205,20 @@ public class SimpleInputParser {
 					seg.durationUnits = 0;
 					seg.events.addAll(events);
 					seg.line = lineNo;
+					measure.segments.add(seg);
+				}
+				i++;
+				continue;
+			}
+			// 連音群組 [..]：內部事件平均分在 1 拍（M: 分母為一拍）
+			if (token.startsWith("[") && token.endsWith("]")) {
+				List<SimpleInputSong.Event> tupletEvents = parseTupletGroup(token, lineNo, index, song);
+				if (!measure.segments.isEmpty()) {
+					measure.segments.get(measure.segments.size() - 1).events.addAll(tupletEvents);
+				} else {
+					SimpleInputSong.ChordSegment seg = new SimpleInputSong.ChordSegment();
+					seg.line = lineNo;
+					seg.events.addAll(tupletEvents);
 					measure.segments.add(seg);
 				}
 				i++;
@@ -245,6 +260,39 @@ public class SimpleInputParser {
 			i++;
 		}
 		return measure;
+	}
+
+	/** 解析事件序列（可含連音群組 [..] 與一般事件），回傳事件清單。用於 @ 定義展開 */
+	private List<SimpleInputSong.Event> parseEventSequence(String text, int lineNo, int measureIndex, SimpleInputSong song) throws SimpleInputFormatException {
+		List<SimpleInputSong.Event> events = new ArrayList<>();
+		// 以空白切分 token；[..] 連音群組視為單一 token
+		Matcher m = Pattern.compile("\\[[^\\]]*\\]|\\S+").matcher(text);
+		while (m.find()) {
+			String token = m.group();
+			if (token.startsWith("[") && token.endsWith("]")) {
+				events.addAll(parseTupletGroup(token, lineNo, measureIndex, song));
+			} else {
+				events.addAll(parseEvents(token, lineNo, measureIndex, song));
+			}
+		}
+		return events;
+	}
+
+	/** 解析連音群組 [..]：內部事件平均分在 1 拍（M: 分母為一拍），事件數必須 3/5/6 */
+	private List<SimpleInputSong.Event> parseTupletGroup(String token, int lineNo, int measureIndex, SimpleInputSong song) throws SimpleInputFormatException {
+		String inner = token.substring(1, token.length() - 1).trim();
+		List<SimpleInputSong.Event> tupletEvents = parseEvents(inner, lineNo, measureIndex, song);
+		int count = tupletEvents.size();
+		if (count != 3 && count != 5 && count != 6) {
+			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：連音群組內的事件數必須是 3、5 或 6，目前是 " + count);
+		}
+		// 每個事件時值 = 1 拍 / 事件數（以基礎單位計）
+		double perEvent = (double) this.unitsPerBeat / count;
+		for (SimpleInputSong.Event ev : tupletEvents) {
+			ev.tuplet = count;
+			ev.durationUnits = perEvent;
+		}
+		return tupletEvents;
 	}
 
 	/** 解析事件序列（pattern 字串或 token），回傳事件清單 */

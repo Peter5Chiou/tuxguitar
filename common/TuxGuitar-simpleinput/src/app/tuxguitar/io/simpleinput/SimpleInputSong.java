@@ -24,6 +24,7 @@ public class SimpleInputSong {
 		public List<Integer> strings; // 使用者編號（1~6），null = 全和弦
 		public Map<Integer, Integer> forcedFrets; // 使用者弦號 → 強制品位（如 2:3），可為 null
 		public Integer strokeDenominator; // 刷速（~N，N=4~64 分音符）；null = 依事件時值自動推導
+		public int tuplet;        // 連音數（0 = 非連音；3/5/6 = 三/五/六連音）
 		public int line;           // 來源行（錯誤報告用）
 	}
 

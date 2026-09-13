@@ -150,6 +150,59 @@ public class ParserTest {
 		}
 		System.out.println("OK: stroke speed inheritance across measures");
 
+		// 連音群組 [..]：三連音 [t 1 2] 佔 1 拍，每個事件時值 = 1拍/3
+		String tupletSyntax = "M:4/4\nL:1/8\nG(4) [t 1 2] [x x x] [d u d u d u] [d u d u d]\n";
+		SimpleInputSong.ChordSegment tupletSegment = parser.parse(tupletSyntax).measures.get(0).segments.get(0);
+		// 3 + 3 + 6 + 5 = 17 事件；每個三連音事件時值 = 2/3 單位（1拍=2單位/3）
+		if (tupletSegment.events.size() != 17) {
+			throw new AssertionError("expected 17 events for tuplets, got " + tupletSegment.events.size());
+		}
+		// [t 1 2]：3 個事件，tuplet=3，時值 2/3
+		for (int i = 0; i < 3; i++) {
+			if (tupletSegment.events.get(i).tuplet != 3
+					|| Math.abs(tupletSegment.events.get(i).durationUnits - 2.0 / 3) > 0.000001) {
+				throw new AssertionError("triplet event " + i + " tuplet=" + tupletSegment.events.get(i).tuplet
+					+ " dur=" + tupletSegment.events.get(i).durationUnits);
+			}
+		}
+		// [x x x]：3 個事件，tuplet=3
+		for (int i = 3; i < 6; i++) {
+			if (tupletSegment.events.get(i).tuplet != 3) {
+				throw new AssertionError("triplet x event " + i + " tuplet=" + tupletSegment.events.get(i).tuplet);
+			}
+		}
+		// [d u d u d u]：6 個事件，tuplet=6
+		for (int i = 6; i < 12; i++) {
+			if (tupletSegment.events.get(i).tuplet != 6) {
+				throw new AssertionError("sextuplet event " + i + " tuplet=" + tupletSegment.events.get(i).tuplet);
+			}
+		}
+		// [d u d u d]：5 個事件，tuplet=5
+		for (int i = 12; i < 17; i++) {
+			if (tupletSegment.events.get(i).tuplet != 5) {
+				throw new AssertionError("quintuplet event " + i + " tuplet=" + tupletSegment.events.get(i).tuplet);
+			}
+		}
+		System.out.println("OK: tuplet group parsing (triplet/quintuplet/sextuplet)");
+
+		// 錯誤案例：連音群組事件數非 3/5/6
+		String badTuplet = "M:4/4\nL:1/8\nG(4) [d u d u]\n";
+		try {
+			parser.parse(badTuplet);
+			System.out.println("FAIL: should have thrown for 4-note tuplet");
+		} catch (SimpleInputFormatException e) {
+			System.out.println("OK (error expected): " + e.getMessage());
+		}
+
+		// 錯誤案例：連音群組事件數非 3/5/6（2 個）
+		String badTuplet2 = "M:4/4\nL:1/8\nG(4) [d u]\n";
+		try {
+			parser.parse(badTuplet2);
+			System.out.println("FAIL: should have thrown for 2-note tuplet");
+		} catch (SimpleInputFormatException e) {
+			System.out.println("OK (error expected): " + e.getMessage());
+		}
+
 		// 錯誤案例：刷速超出範圍（非 2 的冪）
 		String badStroke = "M:4/4\nL:1/8\nG d~3\n";
 		try {
