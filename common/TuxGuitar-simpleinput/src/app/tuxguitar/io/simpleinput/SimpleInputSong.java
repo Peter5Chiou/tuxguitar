@@ -41,6 +41,7 @@ public class SimpleInputSong {
 	public static class Measure {
 		public List<ChordSegment> segments = new ArrayList<>();
 		public int line;
+		public double units; // 此小節實際總基礎單位數（validateSegments 填寫；供 builder 設定長度/拍號）
 	}
 
 	public Header header = new Header();

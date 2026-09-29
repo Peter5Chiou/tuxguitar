@@ -51,15 +51,30 @@ public class SimpleInputSongBuilder {
 		ts.getDenominator().setValue(durationValue(src.header.denominator));
 
 		// 先建立所有 measure headers（避免 addTrack 對空歌觸發 fillSong 產生預設小節）
-		long measureLength = unitTime * totalUnits(src);
+		// 每個小節依其「實際總單位數」設定長度與 start（弱起第一/末小節時自動縮短小節，避免 TuxGuitar 補空拍休止符）
+		// 注意：start 以一般 ticks 累加，必須用 setStart（內部轉成 preciseTime），不可直接 setPreciseStart，否則時間尺度錯誤
+		double unitsPerBeat = (double) src.header.unitDenominator / src.header.denominator;
 		long start = TGDuration.QUARTER_TIME;
-		for (int i = 0; i < src.measures.size(); i++) {
+		int n = src.measures.size();
+		for (int i = 0; i < n; i++) {
+			SimpleInputSong.Measure m = src.measures.get(i);
+			double measureUnits = m.units > 0 ? m.units : totalUnits(src); // 小節實際單位數
 			TGMeasureHeader header = this.factory.newHeader();
 			header.setNumber(i + 1);
-			header.setStart(start + i * measureLength);
+			header.setStart(start);
 			header.getTempo().copyFrom(tempo);
 			header.getTimeSignature().copyFrom(ts);
+			// 弱起歌曲：把第一小節與末小節設成「實際拍數」的拍號（只處理整拍；非整拍維持原拍號）
+			boolean isPickupHead = (i == 0 || i == n - 1) && src.pickup;
+			if (isPickupHead) {
+				Double beats = wholeBeats(measureUnits, unitsPerBeat);
+				if (beats != null) {
+					header.getTimeSignature().setNumerator(beats.intValue());
+					header.getTimeSignature().getDenominator().setValue(durationValue(src.header.denominator));
+				}
+			}
 			song.addMeasureHeader(header);
+			start += Math.round(measureUnits * unitTime);
 		}
 
 		// 手動建立 track（不走 manager.addTrack：空歌會觸發 fillSong 產生多餘的預設小節）
@@ -95,6 +110,22 @@ public class SimpleInputSongBuilder {
 
 	private int totalUnits(SimpleInputSong src) {
 		return src.header.numerator * src.header.unitDenominator / src.header.denominator;
+	}
+
+	/** 是否為「整拍」的單位數；是則回傳拍數（≥1），否則 null（非整拍不縮小節） */
+	private Double wholeBeats(double measureUnits, double unitsPerBeat) {
+		if (unitsPerBeat <= 0) {
+			return null;
+		}
+		double beats = measureUnits / unitsPerBeat;
+		if (beats < 1) {
+			return null; // 不足 1 拍：非整拍，不縮小節
+		}
+		long rounded = Math.round(beats);
+		if (Math.abs(beats - rounded) < 0.000001) {
+			return (double) rounded;
+		}
+		return null; // 有餘數：非整拍
 	}
 
 	private void setupTrack(TGSong song, TGTrack track) {

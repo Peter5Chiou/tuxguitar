@@ -326,7 +326,8 @@ public class SimpleInputParser {
 			}
 			char type = m.group(1).charAt(0);
 			double units = duration(m.group(2), m.group(3), m.group(4), m.group(5));
-			addEvent(events, type == '-' ? 'r' : type, units, m.group(6), lineNo, measureIndex, m.group(7));
+			// z 與 - 都是休止，統一改成 'r'（builder 只認 'r' 為休止）
+			addEvent(events, (type == '-' || type == 'z') ? 'r' : type, units, m.group(6), lineNo, measureIndex, m.group(7));
 		}
 		if (!text.substring(last).trim().isEmpty()) {
 			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：無法解析的符號「" + text.substring(last).trim() + "」");
@@ -443,12 +444,18 @@ public class SimpleInputParser {
 				}
 				total += Math.max(seg.durationUnits, pUnits);
 			}
+			measure.units = total; // 記錄此小節實際總單位數，供 builder 設定長度/拍號
 			boolean isFirst = i == 0;
 			boolean isLast = i == n - 1;
 			if (!sameUnits(total, totalUnitsPerMeasure)) {
 				if (isFirst && total < totalUnitsPerMeasure) {
 					song.pickup = true;
 					continue; // 弱起：合計檢查在最後
+				}
+				// 弱起歌曲的末小節不要求滿拍，交由最後的「弱起 + 末小節合計」檢查
+				// （末小節仍須滿足：末小節單位 + 弱起單位 = 整小節單位數）
+				if (isLast && song.pickup) {
+					continue;
 				}
 				String kind = isFirst ? "（弱起）" : "";
 				throw new SimpleInputFormatException("SimpleInput: 第 " + measure.line + " 行、第 " + measureNo + " 小節" + kind

@@ -10,7 +10,7 @@ K:Em
 @island = d2 u d u d2 u
 @arp    = t (23) 1 (23) 1 (23) 1 (23)
 
-z(1) | Em(3) @basic | Em(3) @basic | Bm7(3) @basic | Em(3) @basic | Em7(3) @basic | A(3) @basic | Em7(3) @basic | A(3) @basic |
+z2 | Em(3) @basic | Em(3) @basic | Bm7(3) @basic | Em(3) @basic | Em7(3) @basic | A(3) @basic | Em7(3) @basic | A(3) @basic |
 Em7(3) @basic | A(3) @basic | Em7(3)  @basic | A(3) @basic | C(3) @basic | D(3) @basic | Em(3) @basic | Em(3) @basic | G(3) @basic |
 G(3) @basic | D(3) @basic | D(3) @basic | Em(3) @basic | C(3) @basic | Bm7(3) @basic | Bm7(3) @basic | Em(3) @basic | Bm7(3) @basic |
 Em(3) @basic | Em(3) @basic |
