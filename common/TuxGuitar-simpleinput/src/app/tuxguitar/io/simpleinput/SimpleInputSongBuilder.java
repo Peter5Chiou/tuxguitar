@@ -141,12 +141,21 @@ public class SimpleInputSongBuilder {
 		if (events.isEmpty()) {
 			// 無 pattern：一次 d 刷全和弦，持續 segmentUnits
 			if (chordInfo != null) {
-				buildStrumBeat(manager, measure, src, chordInfo, start, Math.round(segmentUnits * unitTime), true, null, null, null, 0, segment.line, segmentContext(segment));
+				buildStrumBeat(manager, measure, src, chordInfo, start, Math.round(segmentUnits * unitTime), true, null, null, null, 0, false, segment.line, segmentContext(segment));
 				addChordToBeat(measure, start, chordInfo, segment.chordName);
 			} else {
 				buildRestBeat(measure, start, Math.round(segmentUnits * unitTime), 0);
 			}
 			return start + Math.round(segmentUnits * unitTime);
+		}
+
+		// 檢查此段落是否包含彈根音事件 't'（若包含，未指定弦的 d/u 刷法自動排除根音弦）
+		boolean hasRoot = false;
+		for (SimpleInputSong.Event ev : events) {
+			if (ev.type == 't' || ev.type == 'x') {
+				hasRoot = true;
+				break;
+			}
 		}
 
 		// pattern 縮放係數
@@ -176,7 +185,7 @@ public class SimpleInputSongBuilder {
 					if (chordInfo == null) {
 						throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：刷弦事件需要先指定和弦");
 					}
-					buildStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.type == 'd', ev.strings, null, ev.strokeDenominator, ev.tuplet, ev.line, segmentContext(segment));
+					buildStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.type == 'd', ev.strings, null, ev.strokeDenominator, ev.tuplet, hasRoot, ev.line, segmentContext(segment));
 					break;
 				case 'x':
 					if (chordInfo == null) {
@@ -218,21 +227,27 @@ public class SimpleInputSongBuilder {
 		return start + Math.round(segmentUnits * unitTime);
 	}
 
-	/** 下/上刷 → 多音 beat + TGStroke。userStrings 為 null 時刷全和弦；forcedFrets 覆寫個別弦品位的強制；strokeDenominator 指定刷速（~N）；tuplet 連音數（0=無） */
+	/** 下/上刷 → 多音 beat + TGStroke。userStrings 為 null 時刷全和弦（若 excludeRoot 為 true 則排除根音弦）；forcedFrets 覆寫個別弦品位的強制；strokeDenominator 指定刷速（~N）；tuplet 連音數（0=無） */
 	private void buildStrumBeat(TGSongManager manager, TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, boolean down, List<Integer> userStrings, Map<Integer, Integer> forcedFrets, Integer strokeDenominator, int tuplet, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, boolean down, List<Integer> userStrings, Map<Integer, Integer> forcedFrets, Integer strokeDenominator, int tuplet, boolean excludeRoot, int line, String context) throws SimpleInputFormatException {
 
 		TGBeat beat = getBeat(measure, preciseStart);
 		TGVoice voice = beat.getVoice(0);
 		voice.setEmpty(false);
 		setDuration(voice, preciseDuration, tuplet);
 
-		// 決定要刷的弦：指定弦（使用者編號→實際弦）或全和弦發音弦
+		// 決定要刷的弦：指定弦（使用者編號→實際弦）或全和弦發音弦（若段落有 t 則排除根音弦）
 		List<Integer> realStrings;
 		if (userStrings != null && !userStrings.isEmpty()) {
 			realStrings = SimpleStringUtil.toRealStrings(userStrings);
 		} else {
-			realStrings = chordInfo.soundingStrings();
+			realStrings = new ArrayList<>();
+			for (Integer s : chordInfo.soundingStrings()) {
+				if (excludeRoot && s == chordInfo.rootString) {
+					continue;
+				}
+				realStrings.add(s);
+			}
 		}
 		for (Integer realString : realStrings) {
 			int fret = chordInfo.frets[6 - realString];
@@ -268,7 +283,7 @@ public class SimpleInputSongBuilder {
 		} else {
 			userNoStrings.add(SimpleStringUtil.toRealString(root + 1)); // 根音已在第 1 弦時，往低音側取
 		}
-		buildStrumBeat(manager, measure, src, chordInfo, preciseStart, preciseDuration, true, userNoStrings, null, strokeDenominator, tuplet, line, context);
+		buildStrumBeat(manager, measure, src, chordInfo, preciseStart, preciseDuration, true, userNoStrings, null, strokeDenominator, tuplet, false, line, context);
 	}
 
 	/** 套用強制品位：userStringNo（使用者編號）符合時覆寫 fret */

@@ -64,6 +64,10 @@ public class SimpleInputChordDictionary {
 		add("Dsus4", new int[]{-1, -1, 0, 2, 3, 3}, 4);
 		// B7: x21202
 		add("B7", new int[]{-1, 2, 1, 2, 0, 2}, 5);
+		// Em7: 020000
+		add("Em7", new int[]{0, 2, 0, 0, 0, 0}, 6);
+		// Bm7: x24232 (封閉)
+		add("Bm7", new int[]{-1, 2, 4, 2, 3, 2}, 5);
 	}
 
 	private void add(String name, int[] frets, int rootString) {
@@ -98,7 +102,7 @@ public class SimpleInputChordDictionary {
 	 *  同時嘗試 E 形（根音弦6）與 A 形（根音弦5），取把位較低者。 */
 	private ChordInfo deriveBarreChord(String name) {
 		java.util.regex.Matcher m = java.util.regex.Pattern
-			.compile("^([A-G])([#b]?)(m|maj|min|7|sus2|sus4|dim|aug)?$")
+			.compile("^([A-G])([#b]?)(m|maj|min|m7|min7|7|sus2|sus4|dim|aug)?$")
 			.matcher(name);
 		if (!m.matches()) {
 			return null;
@@ -111,17 +115,19 @@ public class SimpleInputChordDictionary {
 		boolean isMajor = suffix.isEmpty() || suffix.equals("maj");
 		boolean isMinor = suffix.equals("m") || suffix.equals("min");
 		boolean isSeven = suffix.equals("7");
-		if (!isMajor && !isMinor && !isSeven) {
+		boolean isMinorSeven = suffix.equals("m7") || suffix.equals("min7");
+		if (!isMajor && !isMinor && !isSeven && !isMinorSeven) {
 			return null;
 		}
 
 		ChordInfo best = null;
 		int bestFret = Integer.MAX_VALUE;
 
-		// E 形（根音弦 6）：開放 E/Em/E7 基型
+		// E 形（根音弦 6）：開放 E/Em/E7/Em7 基型
 		int eFret = (semitone - semitone("E") + 12) % 12;
 		if (eFret > 0) {
-			int[] shape = isMinor ? new int[]{0, 2, 2, 0, 0, 0}
+			int[] shape = isMinorSeven ? new int[]{0, 2, 0, 0, 0, 0}
+				: isMinor ? new int[]{0, 2, 2, 0, 0, 0}
 				: isSeven ? new int[]{0, 2, 0, 1, 0, 0}
 				: new int[]{0, 2, 2, 1, 0, 0};
 			ChordInfo cand = shifted(name, shape, eFret, 6);
@@ -130,10 +136,11 @@ public class SimpleInputChordDictionary {
 				bestFret = eFret;
 			}
 		}
-		// A 形（根音弦 5）：開放 A/Am/A7 基型
+		// A 形（根音弦 5）：開放 A/Am/A7/Am7 基型
 		int aFret = (semitone - semitone("A") + 12) % 12;
 		if (aFret > 0) {
-			int[] shape = isMinor ? new int[]{-1, 0, 2, 2, 1, 0}
+			int[] shape = isMinorSeven ? new int[]{-1, 0, 2, 0, 1, 0}
+				: isMinor ? new int[]{-1, 0, 2, 2, 1, 0}
 				: isSeven ? new int[]{-1, 0, 2, 0, 2, 0}
 				: new int[]{-1, 0, 2, 2, 2, 0};
 			ChordInfo cand = shifted(name, shape, aFret, 5);

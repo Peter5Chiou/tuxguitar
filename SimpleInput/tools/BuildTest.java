@@ -112,6 +112,91 @@ public class BuildTest {
 		}
 		System.out.println("OK: tuplet division type and duration value applied to TGDuration");
 
+		// Bm7 及 Em7 和弦測試
+		String chordTestSrc = String.join("\n",
+			"M:4/4",
+			"L:1/8",
+			"",
+			"Bm7(4) d2u2d2u2 | Em7(4) d2u2d2u2 |",
+			"");
+		SimpleInputSong chordTestParsed = new SimpleInputParser().parse(chordTestSrc);
+		TGSong chordTestSong = new SimpleInputSongBuilder(new TGFactory()).build(chordTestParsed);
+		TGMeasure mBm7 = chordTestSong.getTrack(0).getMeasure(0);
+		TGChord bm7Chord = mBm7.getBeat(0).getChord();
+		if (bm7Chord == null || !"Bm7".equals(bm7Chord.getName())) {
+			throw new AssertionError("Bm7 chord was not attached to beat 0");
+		}
+		int[] expectedBm7 = {-1, 2, 4, 2, 3, 2}; // 弦6到弦1
+		for (int s = 1; s <= 6; s++) {
+			int actual = bm7Chord.getFretValue(s - 1);
+			int expFret = expectedBm7[6 - s];
+			if (actual != expFret) {
+				throw new AssertionError("Bm7 string " + s + " fret=" + actual + ", expected " + expFret);
+			}
+		}
+
+		TGMeasure mEm7 = chordTestSong.getTrack(0).getMeasure(1);
+		TGChord em7Chord = mEm7.getBeat(0).getChord();
+		if (em7Chord == null || !"Em7".equals(em7Chord.getName())) {
+			throw new AssertionError("Em7 chord was not attached to beat 0 of measure 1");
+		}
+		int[] expectedEm7 = {0, 2, 0, 0, 0, 0}; // 弦6到弦1
+		for (int s = 1; s <= 6; s++) {
+			int actual = em7Chord.getFretValue(s - 1);
+			int expFret = expectedEm7[6 - s];
+			if (actual != expFret) {
+				throw new AssertionError("Em7 string " + s + " fret=" + actual + ", expected " + expFret);
+			}
+		}
+		System.out.println("OK: Bm7 and Em7 chords verified");
+
+		// 測試刷法 t d u d u：d/u 必須排除根音弦（Em 根音弦 6 不發音，只發音 1~5 弦）
+		String rootStrumSrc = String.join("\n",
+			"M:3/4",
+			"L:1/8",
+			"",
+			"Em(3) t2 d u d u |",
+			"");
+		SimpleInputSong rootStrumParsed = new SimpleInputParser().parse(rootStrumSrc);
+		TGSong rootStrumSong = new SimpleInputSongBuilder(new TGFactory()).build(rootStrumParsed);
+		TGMeasure rootStrumMeasure = rootStrumSong.getTrack(0).getMeasure(0);
+		// beat 0 是 t2 (根音弦 6)
+		TGVoice v0 = rootStrumMeasure.getBeat(0).getVoice(0);
+		if (v0.countNotes() != 1 || v0.getNote(0).getString() != 6) {
+			throw new AssertionError("beat 0 should be single root note on string 6");
+		}
+		// 後續 beat 1~4 是 d u d u，發音弦應該是 1~5 弦，不包含根音弦 6
+		for (int bi = 1; bi <= 4; bi++) {
+			TGVoice vb = rootStrumMeasure.getBeat(bi).getVoice(0);
+			for (int ni = 0; ni < vb.countNotes(); ni++) {
+				if (vb.getNote(ni).getString() == 6) {
+					throw new AssertionError("beat " + bi + " strum should NOT contain root string 6");
+				}
+			}
+			if (vb.countNotes() != 5) {
+				throw new AssertionError("beat " + bi + " should have 5 sounding strings, got " + vb.countNotes());
+			}
+		}
+		System.out.println("OK: strum d/u excludes root string when pattern contains t");
+
+		// 測試無 t 的純刷法：Em(4) d2u2d2u2 依然刷全和弦（所有 6 根弦）
+		String fullStrumSrc = String.join("\n",
+			"M:4/4",
+			"L:1/8",
+			"",
+			"Em(4) d2 u2 d2 u2 |",
+			"");
+		SimpleInputSong fullStrumParsed = new SimpleInputParser().parse(fullStrumSrc);
+		TGSong fullStrumSong = new SimpleInputSongBuilder(new TGFactory()).build(fullStrumParsed);
+		TGMeasure fullStrumMeasure = fullStrumSong.getTrack(0).getMeasure(0);
+		for (int bi = 0; bi < 4; bi++) {
+			TGVoice vb = fullStrumMeasure.getBeat(bi).getVoice(0);
+			if (vb.countNotes() != 6) {
+				throw new AssertionError("pure strum beat " + bi + " should contain all 6 strings, got " + vb.countNotes());
+			}
+		}
+		System.out.println("OK: pure strum without t keeps all sounding strings");
+
 		System.out.println("tracks=" + song.countTracks());
 		TGTrack track = song.getTrack(0);
 		System.out.println("measures=" + track.countMeasures() + " strings=" + track.stringCount());
