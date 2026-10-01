@@ -5,11 +5,26 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import app.tuxguitar.song.models.TGVelocities;
+
 /**
  * .strum 文字格式解析器：Lexer + Parser + Validator.
  * 規格見 SimpleInput/docs/SPEC.md.
  */
 public class SimpleInputParser {
+
+	/** 力度標記（!ppp ~ !fff）→ TGVelocities 值 */
+	private static final java.util.Map<String, Integer> DYNAMICS = new java.util.HashMap<>();
+	static {
+		DYNAMICS.put("ppp", TGVelocities.PIANO_PIANISSIMO);
+		DYNAMICS.put("pp", TGVelocities.PIANISSIMO);
+		DYNAMICS.put("p", TGVelocities.PIANO);
+		DYNAMICS.put("mp", TGVelocities.MEZZO_PIANO);
+		DYNAMICS.put("mf", TGVelocities.MEZZO_FORTE);
+		DYNAMICS.put("f", TGVelocities.FORTE);
+		DYNAMICS.put("ff", TGVelocities.FORTISSIMO);
+		DYNAMICS.put("fff", TGVelocities.FORTE_FORTISSIMO);
+	}
 
 	private static final Pattern CHORD_PATTERN = Pattern.compile("^([A-G][#b]?(?:m|maj|min|sus2|sus4|add9|dim|aug|[0-9])*)$");
 	private static final Pattern HEADER_M = Pattern.compile("M:\\s*(\\d+)\\s*/\\s*(\\d+)");
@@ -25,6 +40,7 @@ public class SimpleInputParser {
 	public SimpleInputSong parse(String source) throws SimpleInputFormatException {
 		SimpleInputSong song = new SimpleInputSong();
 		List<String> bodyLines = new ArrayList<>();
+		this.bodyLineNumbers.clear(); // 每次 parse 重置行號記錄
 		this.currentStrokeDenominator = 16; // 每次 parse 重置刷速狀態（預設 16 分音符）
 
 		String[] lines = source.split("\n", -1);
@@ -180,7 +196,7 @@ public class SimpleInputParser {
 			// 以和弦記號切分段落：和弦名 + 可選把位 + 可選括號拍數 + 後續事件
 			// 括號群組 (6 3 2 1) 或 (6 3=4 2=5 1=3) 內部可含空格，需視為單一 token
 			// 連音群組 [..] 內部可含空格，需視為單一 token
-		Matcher m = Pattern.compile("([A-G][A-Za-z0-9#b]*(?:@\\d+)?(?:\\(\\d+\\))?)|(@[A-Za-z0-9_]+)|(\\([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*\\)(?:\\d*(?:[*/]\\d+)?)?)|(\\[[^\\]]*\\])|([^\\s]+)").matcher(text);
+		Matcher m = Pattern.compile("([A-G][A-Za-z0-9#b]*(?:@\\d+)?(?:\\(\\d+\\))?)|(@[A-Za-z0-9_]+)|(\\([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*\\)(?:\\d*(?:[*/]\\d+)?)?(?:!(?:ppp|pp|p|mp|mf|f|ff|fff))?)|(\\[[^\\]]*\\])|([^\\s]+)").matcher(text);
 		List<String> tokens = new ArrayList<>();
 		while (m.find()) {
 			tokens.add(m.group());
@@ -298,12 +314,12 @@ public class SimpleInputParser {
 	/** 解析事件序列（pattern 字串或 token），回傳事件清單 */
 	private List<SimpleInputSong.Event> parseEvents(String text, int lineNo, int measureIndex, SimpleInputSong song) throws SimpleInputFormatException {
 		List<SimpleInputSong.Event> events = new ArrayList<>();
-		// d/u/t/x/z/- [數字] [*|/倍數] [:弦...] [~刷速] 或 弦=品 強制（如 2=3）；(23) 多弦單音（可接 *|/ 時值）；單一數字=單弦
+		// d/u/t/x/z/- [數字] [*|/倍數] [:弦...] [~刷速] [!力度] 或 弦=品 強制（如 2=3）；(23) 多弦單音（可接 *|/ 時值）；單一數字=單弦
 		Pattern p = Pattern.compile(
-			"(d|u|t|x|z|-)(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?::([1-6]+))?(?:~(\\d+))?|" +  // 刷/根音/悶/休止（可接 ~N 刷速）
-			"([1-6])=(\\d+)(?:(\\d+)?([*/])(\\d+)|(\\d+))?|" + // 弦=強制品位（如 2=3）
-			"(\\()([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*)(\\))(?:(\\d+)?([*/])(\\d+))?|" +   // (23) 或 (6 3=4 2=5 1=3) 多弦（可各指定品位），可接 *|/ 時值
-			"([1-6])(?:(\\d+)?([*/])(\\d+)|(\\d+))?"); // 單弦及時值
+			"(d|u|t|x|z|-)(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?::([1-6]+))?(?:~(\\d+))?(?:!(\\w+))?|" +  // 刷/根音/悶/休止（可接 ~N 刷速、!力度）
+			"([1-6])=(\\d+)(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?:!(\\w+))?|" + // 弦=強制品位（如 2=3）
+			"(\\()([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*)(\\))(?:(\\d+)?([*/])(\\d+))?(?:!(\\w+))?|" +   // (23) 或 (6 3=4 2=5 1=3) 多弦（可各指定品位），可接 *|/ 時值、!力度
+			"([1-6])(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?:!(\\w+))?"); // 單弦及時值（可接 !力度）
 		Matcher m = p.matcher(text);
 		int last = 0;
 		while (m.find()) {
@@ -311,28 +327,40 @@ public class SimpleInputParser {
 				throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：無法解析的符號「" + text.substring(last, m.start()).trim() + "」");
 			}
 			last = m.end();
-			if (m.group(20) != null) { // 單弦
-				addEvent(events, 'n', duration(m.group(21), m.group(22), m.group(23), m.group(24)), m.group(20), lineNo, measureIndex);
+			if (m.group(23) != null) { // 單弦
+				addEvent(events, 'n', duration(m.group(24), m.group(25), m.group(26), m.group(27)), m.group(23), lineNo, measureIndex, null, velocityOf(m.group(28), lineNo, measureIndex));
 				continue;
 			}
-			if (m.group(14) != null) { // (23) 或 (6 3=4 2=5 1=3)
-				addForcedGroupEvent(events, m.group(15), duration(m.group(17), m.group(18), m.group(19), null), lineNo, measureIndex);
+			if (m.group(16) != null) { // (23) 或 (6 3=4 2=5 1=3)
+				addForcedGroupEvent(events, m.group(17), duration(m.group(19), m.group(20), m.group(21), null), lineNo, measureIndex, velocityOf(m.group(22), lineNo, measureIndex));
 				continue;
 			}
-			if (m.group(8) != null) { // 2=3 強制品位
-				addForcedEvent(events, Integer.parseInt(m.group(8)), Integer.parseInt(m.group(9)),
-					duration(m.group(10), m.group(11), m.group(12), m.group(13)), lineNo, measureIndex);
+			if (m.group(9) != null) { // 2=3 強制品位
+				addForcedEvent(events, Integer.parseInt(m.group(9)), Integer.parseInt(m.group(10)),
+					duration(m.group(11), m.group(12), m.group(13), m.group(14)), lineNo, measureIndex, velocityOf(m.group(15), lineNo, measureIndex));
 				continue;
 			}
 			char type = m.group(1).charAt(0);
 			double units = duration(m.group(2), m.group(3), m.group(4), m.group(5));
 			// z 與 - 都是休止，統一改成 'r'（builder 只認 'r' 為休止）
-			addEvent(events, (type == '-' || type == 'z') ? 'r' : type, units, m.group(6), lineNo, measureIndex, m.group(7));
+			addEvent(events, (type == '-' || type == 'z') ? 'r' : type, units, m.group(6), lineNo, measureIndex, m.group(7), velocityOf(m.group(8), lineNo, measureIndex));
 		}
 		if (!text.substring(last).trim().isEmpty()) {
 			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：無法解析的符號「" + text.substring(last).trim() + "」");
 		}
 		return events;
+	}
+
+	/** 力度標記名稱（如 f、mp）→ TGVelocities 值；null 表示未指定。名稱不合法時報錯 */
+	private Integer velocityOf(String name, int lineNo, int measureIndex) throws SimpleInputFormatException {
+		if (name == null) {
+			return null;
+		}
+		Integer velocity = DYNAMICS.get(name);
+		if (velocity == null) {
+			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：不支援的力度標記「!" + name + "」（支援 ppp、pp、p、mp、mf、f、ff、fff）");
+		}
+		return velocity;
 	}
 
 	private double duration(String base, String operator, String factor, String direct) throws SimpleInputFormatException {
@@ -348,10 +376,14 @@ public class SimpleInputParser {
 	}
 
 	private void addEvent(List<SimpleInputSong.Event> events, char type, double units, String strings, int lineNo, int measureIndex) throws SimpleInputFormatException {
-		addEvent(events, type, units, strings, lineNo, measureIndex, null);
+		addEvent(events, type, units, strings, lineNo, measureIndex, null, null);
 	}
 
 	private void addEvent(List<SimpleInputSong.Event> events, char type, double units, String strings, int lineNo, int measureIndex, String strokeDenominator) throws SimpleInputFormatException {
+		addEvent(events, type, units, strings, lineNo, measureIndex, strokeDenominator, null);
+	}
+
+	private void addEvent(List<SimpleInputSong.Event> events, char type, double units, String strings, int lineNo, int measureIndex, String strokeDenominator, Integer velocity) throws SimpleInputFormatException {
 		if (units <= 0) {
 			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：時值必須為正數");
 		}
@@ -376,11 +408,17 @@ public class SimpleInputParser {
 		if (ev.type == 'd' || ev.type == 'u' || ev.type == 'x') {
 			ev.strokeDenominator = this.currentStrokeDenominator;
 		}
+		ev.velocity = velocity;
 		events.add(ev);
 	}
 
 	/** 強制品位事件（如 2=3）：n 類型 + forcedFrets */
 	private void addForcedEvent(List<SimpleInputSong.Event> events, int userString, int fret, double units, int lineNo, int measureIndex) throws SimpleInputFormatException {
+		addForcedEvent(events, userString, fret, units, lineNo, measureIndex, null);
+	}
+
+	/** 強制品位事件（如 2=3）：n 類型 + forcedFrets */
+	private void addForcedEvent(List<SimpleInputSong.Event> events, int userString, int fret, double units, int lineNo, int measureIndex, Integer velocity) throws SimpleInputFormatException {
 		if (fret < 0 || fret > 24) {
 			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：強制品位 " + fret + " 超出範圍");
 		}
@@ -392,11 +430,17 @@ public class SimpleInputParser {
 		ev.strings.add(userString);
 		ev.forcedFrets = new java.util.LinkedHashMap<>();
 		ev.forcedFrets.put(userString, fret);
+		ev.velocity = velocity;
 		events.add(ev);
 	}
 
 	/** 多弦各指定品位事件（如 (6 3=4 2=5 1=3)）：n 類型 + 多弦 + forcedFrets */
 	private void addForcedGroupEvent(List<SimpleInputSong.Event> events, String spec, double units, int lineNo, int measureIndex) throws SimpleInputFormatException {
+		addForcedGroupEvent(events, spec, units, lineNo, measureIndex, null);
+	}
+
+	/** 多弦各指定品位事件（如 (6 3=4 2=5 1=3)）：n 類型 + 多弦 + forcedFrets */
+	private void addForcedGroupEvent(List<SimpleInputSong.Event> events, String spec, double units, int lineNo, int measureIndex, Integer velocity) throws SimpleInputFormatException {
 		SimpleInputSong.Event ev = new SimpleInputSong.Event();
 		ev.type = 'n';
 		ev.durationUnits = units;
@@ -416,6 +460,7 @@ public class SimpleInputParser {
 				ev.forcedFrets.put(userString, fret);
 			}
 		}
+		ev.velocity = velocity;
 		events.add(ev);
 	}
 

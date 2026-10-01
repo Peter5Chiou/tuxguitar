@@ -75,6 +75,54 @@ public class BuildTest {
 		}
 		System.out.println("OK: stroke speed inheritance applied to TGStroke");
 
+		// 力度指定 !ppp ~ !fff：驗證 TGNote velocity（d/u/x/t 各類型）
+		String dynamicsSrc = String.join("\n",
+			"M:4/4",
+			"L:1/8",
+			"",
+			"G(4) d!f u!p x!mp t!ff d u x t |",
+			"");
+		SimpleInputSong dynamicsParsed = new SimpleInputParser().parse(dynamicsSrc);
+		TGSong dynamicsSong = new SimpleInputSongBuilder(new TGFactory()).build(dynamicsParsed);
+		TGMeasure dynamicsMeasure = dynamicsSong.getTrack(0).getMeasure(0);
+		int[] expectedVelocity = {TGVelocities.FORTE, TGVelocities.PIANO, TGVelocities.MEZZO_PIANO, TGVelocities.FORTISSIMO,
+			TGVelocities.DEFAULT, TGVelocities.DEFAULT, TGVelocities.DEFAULT, TGVelocities.DEFAULT};
+		if (dynamicsMeasure.countBeats() != 8) {
+			throw new AssertionError("expected 8 beats for dynamics test, got " + dynamicsMeasure.countBeats());
+		}
+		for (int i = 0; i < 4; i++) {
+			TGVoice v = dynamicsMeasure.getBeat(i).getVoice(0);
+			if (v.countNotes() == 0) {
+				throw new AssertionError("dynamics beat " + i + " has no notes");
+			}
+			for (int j = 0; j < v.countNotes(); j++) {
+				if (v.getNote(j).getVelocity() != expectedVelocity[i]) {
+					throw new AssertionError("dynamics beat " + i + " note " + j + " velocity = " + v.getNote(j).getVelocity() + ", expected " + expectedVelocity[i]);
+				}
+			}
+		}
+		System.out.println("OK: dynamics !ppp~!fff applied to TGNote velocity");
+
+		// 未指定 !力度：維持 TuxGuitar 預設（TGVelocities.DEFAULT）
+		String noDynamicsSrc = String.join("\n",
+			"M:4/4",
+			"L:1/8",
+			"",
+			"G(4) d u d u d u d u |",
+			"");
+		SimpleInputSong noDynamicsParsed = new SimpleInputParser().parse(noDynamicsSrc);
+		TGSong noDynamicsSong = new SimpleInputSongBuilder(new TGFactory()).build(noDynamicsParsed);
+		TGMeasure noDynamicsMeasure = noDynamicsSong.getTrack(0).getMeasure(0);
+		for (int i = 0; i < noDynamicsMeasure.countBeats(); i++) {
+			TGVoice v = noDynamicsMeasure.getBeat(i).getVoice(0);
+			for (int j = 0; j < v.countNotes(); j++) {
+				if (v.getNote(j).getVelocity() != TGVelocities.DEFAULT) {
+					throw new AssertionError("beat " + i + " note " + j + " velocity should default to " + TGVelocities.DEFAULT + ", got " + v.getNote(j).getVelocity());
+				}
+			}
+		}
+		System.out.println("OK: notes without !dyn keep default velocity");
+
 		// 連音群組 [..]：驗證 TGDivisionType 套用（三連音 3/2、六連音 6/4）
 		String tupletSrc = String.join("\n",
 			"M:4/4",

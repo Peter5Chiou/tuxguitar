@@ -21,6 +21,7 @@ import app.tuxguitar.song.models.TGStroke;
 import app.tuxguitar.song.models.TGTempo;
 import app.tuxguitar.song.models.TGTimeSignature;
 import app.tuxguitar.song.models.TGTrack;
+import app.tuxguitar.song.models.TGVelocities;
 import app.tuxguitar.song.models.TGVoice;
 
 /** 將 SimpleInputSong IR 轉成 TGSong */
@@ -172,7 +173,7 @@ public class SimpleInputSongBuilder {
 		if (events.isEmpty()) {
 			// 無 pattern：一次 d 刷全和弦，持續 segmentUnits
 			if (chordInfo != null) {
-				buildStrumBeat(manager, measure, src, chordInfo, start, Math.round(segmentUnits * unitTime), true, null, null, null, 0, false, segment.line, segmentContext(segment));
+				buildStrumBeat(manager, measure, src, chordInfo, start, Math.round(segmentUnits * unitTime), true, null, null, null, 0, false, null, segment.line, segmentContext(segment));
 				addChordToBeat(measure, start, chordInfo, segment.chordName);
 			} else {
 				buildRestBeat(measure, start, Math.round(segmentUnits * unitTime), 0);
@@ -216,19 +217,19 @@ public class SimpleInputSongBuilder {
 					if (chordInfo == null) {
 						throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：刷弦事件需要先指定和弦");
 					}
-					buildStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.type == 'd', ev.strings, null, ev.strokeDenominator, ev.tuplet, hasRoot, ev.line, segmentContext(segment));
+					buildStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.type == 'd', ev.strings, null, ev.strokeDenominator, ev.tuplet, hasRoot, ev.velocity, ev.line, segmentContext(segment));
 					break;
 				case 'x':
 					if (chordInfo == null) {
 						throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：x 事件需要先指定和弦");
 					}
-					buildMutedStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.strings, ev.strokeDenominator, ev.tuplet, ev.line, segmentContext(segment));
+					buildMutedStrumBeat(manager, measure, src, chordInfo, current, evTime, ev.strings, ev.strokeDenominator, ev.tuplet, ev.velocity, ev.line, segmentContext(segment));
 					break;
 				case 't':
 					if (chordInfo == null) {
 						throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：t 事件需要先指定和弦");
 					}
-					buildNoteBeat(measure, src, chordInfo, current, evTime, chordInfo.rootString, null, ev.tuplet, ev.line, segmentContext(segment));
+					buildNoteBeat(measure, src, chordInfo, current, evTime, chordInfo.rootString, null, ev.tuplet, ev.velocity, ev.line, segmentContext(segment));
 					break;
 				case 'n': {
 					if (ev.strings == null || ev.strings.isEmpty()) {
@@ -237,9 +238,9 @@ public class SimpleInputSongBuilder {
 					if (ev.strings.size() == 1) {
 						int userString = ev.strings.get(0);
 						int realString = SimpleStringUtil.toRealString(userString);
-						buildNoteBeat(measure, src, chordInfo, current, evTime, realString, ev.forcedFrets, ev.tuplet, ev.line, segmentContext(segment));
+						buildNoteBeat(measure, src, chordInfo, current, evTime, realString, ev.forcedFrets, ev.tuplet, ev.velocity, ev.line, segmentContext(segment));
 					} else {
-						buildMultiNoteBeat(measure, src, chordInfo, current, evTime, SimpleStringUtil.toRealStrings(ev.strings), ev.forcedFrets, ev.tuplet, ev.line, segmentContext(segment));
+						buildMultiNoteBeat(measure, src, chordInfo, current, evTime, SimpleStringUtil.toRealStrings(ev.strings), ev.forcedFrets, ev.tuplet, ev.velocity, ev.line, segmentContext(segment));
 					}
 					break;
 				}
@@ -258,9 +259,9 @@ public class SimpleInputSongBuilder {
 		return start + Math.round(segmentUnits * unitTime);
 	}
 
-	/** 下/上刷 → 多音 beat + TGStroke。userStrings 為 null 時刷全和弦（若 excludeRoot 為 true 則排除根音弦）；forcedFrets 覆寫個別弦品位的強制；strokeDenominator 指定刷速（~N）；tuplet 連音數（0=無） */
+	/** 下/上刷 → 多音 beat + TGStroke。userStrings 為 null 時刷全和弦（若 excludeRoot 為 true 則排除根音弦）；forcedFrets 覆寫個別弦品位的強制；strokeDenominator 指定刷速（~N）；velocity 力度（!ppp~!fff，null = 預設）；tuplet 連音數（0=無） */
 	private void buildStrumBeat(TGSongManager manager, TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, boolean down, List<Integer> userStrings, Map<Integer, Integer> forcedFrets, Integer strokeDenominator, int tuplet, boolean excludeRoot, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, boolean down, List<Integer> userStrings, Map<Integer, Integer> forcedFrets, Integer strokeDenominator, int tuplet, boolean excludeRoot, Integer velocity, int line, String context) throws SimpleInputFormatException {
 
 		TGBeat beat = getBeat(measure, preciseStart);
 		TGVoice voice = beat.getVoice(0);
@@ -288,6 +289,7 @@ public class SimpleInputSongBuilder {
 			TGNote note = this.factory.newNote();
 			note.setString(realString);
 			note.setValue(deadNote ? 0 : fret);
+			note.setVelocity(velocity != null ? velocity.intValue() : TGVelocities.DEFAULT);
 			note.getEffect().setDeadNote(deadNote);
 			voice.addNote(note);
 		}
@@ -301,7 +303,7 @@ public class SimpleInputSongBuilder {
 
 	/** x 短刷：刷 根音 + 根音旁靠高音側的一根弦（2 弦） */
 	private void buildMutedStrumBeat(TGSongManager manager, TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> userStrings, Integer strokeDenominator, int tuplet, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> userStrings, Integer strokeDenominator, int tuplet, Integer velocity, int line, String context) throws SimpleInputFormatException {
 
 		// 根音 + 根音往高音方向的一根弦（實際弦號 = rootString - 1）
 		// 注意：buildStrumBeat 的 userStrings 是「使用者編號」，實際→使用者用同一映射（1↔3 對調、其餘不變）
@@ -314,7 +316,7 @@ public class SimpleInputSongBuilder {
 		} else {
 			userNoStrings.add(SimpleStringUtil.toRealString(root + 1)); // 根音已在第 1 弦時，往低音側取
 		}
-		buildStrumBeat(manager, measure, src, chordInfo, preciseStart, preciseDuration, true, userNoStrings, null, strokeDenominator, tuplet, false, line, context);
+		buildStrumBeat(manager, measure, src, chordInfo, preciseStart, preciseDuration, true, userNoStrings, null, strokeDenominator, tuplet, false, velocity, line, context);
 	}
 
 	/** 套用強制品位：userStringNo（使用者編號）符合時覆寫 fret */
@@ -325,9 +327,9 @@ public class SimpleInputSongBuilder {
 		return fret;
 	}
 
-	/** 根音/單弦單音。forcedFrets 有該弦（使用者編號）時覆寫品位；tuplet 連音數（0=無） */
+	/** 根音/單弦單音。forcedFrets 有該弦（使用者編號）時覆寫品位；velocity 力度（null = 預設）；tuplet 連音數（0=無） */
 	private void buildNoteBeat(TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, int realString, Map<Integer, Integer> forcedFrets, int tuplet, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, int realString, Map<Integer, Integer> forcedFrets, int tuplet, Integer velocity, int line, String context) throws SimpleInputFormatException {
 		int fret;
 		if (chordInfo != null) {
 			fret = chordInfo.frets[6 - realString];
@@ -351,12 +353,13 @@ public class SimpleInputSongBuilder {
 		TGNote note = this.factory.newNote();
 		note.setString(realString);
 		note.setValue(fret);
+		note.setVelocity(velocity != null ? velocity.intValue() : TGVelocities.DEFAULT);
 		voice.addNote(note);
 	}
 
-	/** 同時彈多根弦。forcedFrets（使用者弦號→品位）覆寫個別弦品位；tuplet 連音數（0=無） */
+	/** 同時彈多根弦。forcedFrets（使用者弦號→品位）覆寫個別弦品位；velocity 力度（null = 預設）；tuplet 連音數（0=無） */
 	private void buildMultiNoteBeat(TGMeasure measure, SimpleInputSong src,
-			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> realStrings, Map<Integer, Integer> forcedFrets, int tuplet, int line, String context) throws SimpleInputFormatException {
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, List<Integer> realStrings, Map<Integer, Integer> forcedFrets, int tuplet, Integer velocity, int line, String context) throws SimpleInputFormatException {
 		TGBeat beat = getBeat(measure, preciseStart);
 		TGVoice voice = beat.getVoice(0);
 		voice.setEmpty(false);
@@ -379,6 +382,7 @@ public class SimpleInputSongBuilder {
 			TGNote note = this.factory.newNote();
 			note.setString(realString);
 			note.setValue(fret);
+			note.setVelocity(velocity != null ? velocity.intValue() : TGVelocities.DEFAULT);
 			voice.addNote(note);
 		}
 	}

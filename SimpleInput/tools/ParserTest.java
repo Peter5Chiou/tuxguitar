@@ -1,6 +1,7 @@
 import app.tuxguitar.io.simpleinput.SimpleInputParser;
 import app.tuxguitar.io.simpleinput.SimpleInputSong;
 import app.tuxguitar.io.simpleinput.SimpleInputFormatException;
+import app.tuxguitar.song.models.TGVelocities;
 
 public class ParserTest {
 	public static void main(String[] args) throws Exception {
@@ -149,6 +150,74 @@ public class ParserTest {
 			throw new AssertionError("stroke speed should carry across measures");
 		}
 		System.out.println("OK: stroke speed inheritance across measures");
+
+		// 力度指定 !ppp ~ !fff：d2:45~16!f、u:321~8!p、x2~64!mp、d2!f（使用者範例語法）
+		String dynamicsSyntax = "M:4/4\nL:1/8\nG d2:45~16!f u:321~8!p x2~64!mp d2!f d\n";
+		SimpleInputSong.ChordSegment dynamicsSegment = parser.parse(dynamicsSyntax).measures.get(0).segments.get(0);
+		Integer[] expectedVelocities = {
+			TGVelocities.FORTE,
+			TGVelocities.PIANO,
+			TGVelocities.MEZZO_PIANO,
+			TGVelocities.FORTE,
+			null
+		};
+		if (dynamicsSegment.events.size() != 5) {
+			throw new AssertionError("expected 5 events for dynamics test, got " + dynamicsSegment.events.size());
+		}
+		for (int i = 0; i < 5; i++) {
+			Integer actual = dynamicsSegment.events.get(i).velocity;
+			if (actual == null ? expectedVelocities[i] != null : !actual.equals(expectedVelocities[i])) {
+				throw new AssertionError("event " + i + " velocity = " + actual + ", expected " + expectedVelocities[i]);
+			}
+		}
+		System.out.println("OK: dynamics !ppp~!fff syntax (d/u/x with ~N and :strings)");
+
+		// 全力度範圍 + 其他事件類型（t/n/(..)/2=3）+ 未指定 = null
+		String dynamicsAllSyntax = "M:4/4\nL:1/8\nG t!ppp 2/2!pp 3/2!p (23)!mp 2=3!mf d!f u!ff x!fff 1\n";
+		SimpleInputSong.ChordSegment dynamicsAllSegment = parser.parse(dynamicsAllSyntax).measures.get(0).segments.get(0);
+		Integer[] expectedAll = {
+			TGVelocities.PIANO_PIANISSIMO,
+			TGVelocities.PIANISSIMO,
+			TGVelocities.PIANO,
+			TGVelocities.MEZZO_PIANO,
+			TGVelocities.MEZZO_FORTE,
+			TGVelocities.FORTE,
+			TGVelocities.FORTISSIMO,
+			TGVelocities.FORTE_FORTISSIMO,
+			null
+		};
+		if (dynamicsAllSegment.events.size() != 9) {
+			throw new AssertionError("expected 9 events for full dynamics range, got " + dynamicsAllSegment.events.size());
+		}
+		for (int i = 0; i < 9; i++) {
+			Integer actual = dynamicsAllSegment.events.get(i).velocity;
+			if (actual == null ? expectedAll[i] != null : !actual.equals(expectedAll[i])) {
+				throw new AssertionError("event " + i + " velocity = " + actual + ", expected " + expectedAll[i]);
+			}
+		}
+		System.out.println("OK: full dynamics range across event types (t/n/(..)/forced/d/u/x) and null default");
+
+		// 連音群組內可用 !力度
+		String dynamicsTupletSyntax = "M:4/4\nL:1/8\nG(4) [d!f u!p d!f] [x!ff x!ff x!ff] [d d d d d d] [t!ppp 1!pp 2!p] |\n";
+		SimpleInputSong.ChordSegment dynamicsTupletSegment = parser.parse(dynamicsTupletSyntax).measures.get(0).segments.get(0);
+		if (dynamicsTupletSegment.events.size() != 15
+				|| dynamicsTupletSegment.events.get(0).velocity == null || dynamicsTupletSegment.events.get(0).velocity != TGVelocities.FORTE
+				|| dynamicsTupletSegment.events.get(1).velocity == null || dynamicsTupletSegment.events.get(1).velocity != TGVelocities.PIANO
+				|| dynamicsTupletSegment.events.get(3).velocity == null || dynamicsTupletSegment.events.get(3).velocity != TGVelocities.FORTISSIMO
+				|| dynamicsTupletSegment.events.get(12).velocity == null || dynamicsTupletSegment.events.get(12).velocity != TGVelocities.PIANO_PIANISSIMO
+				|| dynamicsTupletSegment.events.get(10).velocity != null) {
+			throw new AssertionError("dynamics inside tuplet group was parsed incorrectly");
+		}
+		System.out.println("OK: dynamics inside tuplet group");
+
+		// 錯誤案例：不支援的力度標記
+		String badDynamics = "M:4/4\nL:1/8\nG d!x\n";
+		try {
+			parser.parse(badDynamics);
+			System.out.println("FAIL: should have thrown for unsupported dynamics");
+		} catch (SimpleInputFormatException e) {
+			System.out.println("OK (error expected): " + e.getMessage());
+		}
 
 		// 連音群組 [..]：三連音 [t 1 2] 佔 1 拍，每個事件時值 = 1拍/3
 		String tupletSyntax = "M:4/4\nL:1/8\nG(4) [t 1 2] [x x x] [d u d u d u] [d u d u d]\n";

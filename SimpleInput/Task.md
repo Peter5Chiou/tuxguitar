@@ -227,6 +227,7 @@ public class TGImportSongAction extends TGSongStreamActionBase {
 - [x] **9.** 測試範例 `.strum` 檔數個（`SimpleInput/examples/`）+ parser 單元測試（`SimpleInput/tools/ParserTest.java`，全數通過）
 - [x] **10.** 建置（§1 指令）BUILD SUCCESS；jar 已組裝至 `share/plugins/tuxguitar-simpleinput.jar`。**剩：實機驗證**（啟動 TuxGuitar → File→Import→SimpleInput Strum → 開 demo1.strum → 檢查和弦圖/播放）
 - [ ] **11.**（可選）`x` 悶音、strum 微延遲、PickStroke 標示
+- [x] **12.** 力度指定 `!ppp`~`!fff`（v1.4）：事件尾端 `!力度`（d/u/x/t/單弦/多弦/連音群組），對應 TGVelocities 8 段；不繼承、未指定沿用預設；不合法標記報錯。Parser/Build 已實作，ParserTest/BuildTest/ReaderTest（demo4-dynamics.strum）全過，建置後 jar 已更新（見 Readme.md v1.4）
 
 ---
 

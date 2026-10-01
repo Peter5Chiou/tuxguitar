@@ -1,0 +1,12 @@
+% SimpleInput 範例：力度指定（!ppp ~ !fff）
+M:4/4
+L:1/8
+Q:1/4=70
+K:C
+
+% 強弱交替刷法：f / p / mp / f ...
+G(4) d!f u!p d!mp u!f d!f u!p d!f u!f |
+% 指法力度漸強：ppp → fff
+Em(4) t!ppp 1!pp 2!p (23)!mp 3!mf 2!f 1!ff 3!fff |
+% 短刷力度
+C(4) x!p x!p x!mp x!mp d!f d!f u!ff u!ff |

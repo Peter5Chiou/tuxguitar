@@ -52,6 +52,22 @@ G(2) @basic | C(2) @island G(2) @basic | Am(4) @arp | F(2) @basic C(2) @basic ||
 
 `~N` 只影響刷弦的 TGStroke 速度標示，不影響事件本身時值。N 必須是 4 到 64 之間的 2 的冪（4、8、16、32、64），否則報錯。
 
+### 力度指定（`!ppp` ~ `!fff`）
+
+`d`/`u`/`x`/`t`/單弦/多弦等事件**尾端**可用 `!` 接力度標記（放在事件最後、`~N` 之後）：
+
+| 寫法 | 意思 |
+| --- | --- |
+| `d2:45~16!f` | 下刷，力度 f |
+| `u:321~8!p` | 上刷，力度 p |
+| `x2~64!mp` | 短刷，力度 mp |
+| `d2!f` | 下刷，力度 f |
+| `(23)!mf` | 多弦單音，力度 mf |
+| `t!ppp` | 根音單音，力度 ppp |
+| `[d!f u!p d!f]` | 連音群組內每個事件可各自指定力度 |
+
+支援 `ppp`、`pp`、`p`、`mp`、`mf`、`f`、`ff`、`fff` 8 段力度（對應 `TGVelocities` 的 8 個值）。力度**只套用該事件**、**不繼承**；未指定時維持 TuxGuitar 預設（`TGVelocities.DEFAULT` = f）。不支援的標記（如 `!x`）→ 錯誤，訊息列出支援範圍。`z`/`-` 休止事件可寫但無音符可套用，忽略。
+
 ### 連音群組（`[..]`）
 
 用方括號 `[..]` 包住多個事件，這些事件**平均分在 1 拍**（以 `M:` 分母為一拍）：
@@ -128,6 +144,7 @@ G(2) @basic | C(2) @island G(2) @basic | Am(4) @arp | F(2) @basic C(2) @basic ||
   - d/u → 和弦所有發音弦各一顆 `TGNote`（fret 來自和弦字典），`TGBeat` 掛 `TGStroke`。刷速 `~N` 指定時用對應的 TGStroke value；未指定時預設 16 分音符（並沿用先前指定的刷速）。
   - t → 根音弦一顆 note；n / (ab) → 對應弦 note。
   - z / - → 休止 beat（無 note）。
+  - 事件 `!力度` → 該 beat 所有 `TGNote` 設 `setVelocity`（對應 `TGVelocities` 值）；未指定沿用預設（`TGVelocities.DEFAULT`）。
   - 連音群組 `[..]` 的事件 → 每個事件一個 `TGBeat`，時值 = 1 拍 / 事件數，並在 `TGDuration` 的 `TGDivisionType` 設定連音（3→3/2、5→5/4、6→6/4）。
   - 和弦出現的第一個 beat 掛 `TGChord`（和弦圖顯示）。
 - `Q:` → `TGTempo`；`M:` → `TGTimeSignature`；`L:` 決定 1 單位 = `TGDuration`（1/8 → EIGHTH）。
@@ -146,4 +163,4 @@ SimpleInput: 第 5 行、第 1 小節：未識別的和弦「H7」
 
 ## 9. v1 明確不做
 
-- `x` 悶音、@ 巢狀、刷弦時間微錯開、多 track、非 standard tuning、歌詞/力度標記。
+- `x` 悶音、@ 巢狀、刷弦時間微錯開、多 track、非 standard tuning、歌詞、漸強/漸弱等連續力度變化。

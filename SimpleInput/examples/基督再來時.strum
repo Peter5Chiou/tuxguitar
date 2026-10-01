@@ -4,7 +4,8 @@ L:1/8
 Q:1/4=76
 K:Em
 
-@basic  =  x2 d:123 u:321 d:123 u:321
+% @basic  =  x2!f d:123!mf u:321!mp d:123!mp u:321!p
+@basic = t 1 (23) 1 (23) 1
 @end = x2 d:123 u:321
 @f4 = d d d d d d d d
 @island = d2 u d u d2 u
