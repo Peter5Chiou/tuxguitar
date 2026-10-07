@@ -31,6 +31,7 @@ public class SimpleInputParser {
 	private static final Pattern HEADER_L = Pattern.compile("L:\\s*(\\d+)\\s*/\\s*(\\d+)");
 	private static final Pattern HEADER_Q = Pattern.compile("Q:\\s*(\\d+)\\s*/\\s*(\\d+)\\s*=\\s*(\\d+)");
 	private static final Pattern HEADER_K = Pattern.compile("K:\\s*(\\S+)");
+	private static final Pattern HEADER_T = Pattern.compile("T:\\s*([+-]?\\d+)");
 	private static final Pattern CHORD_TOKEN_PATTERN = Pattern.compile("^([A-G][A-Za-z0-9#b]*)(?:@(\\d+))?(?:\\((\\d+)\\))?$");
 
 	private int totalUnitsPerMeasure; // 每小節的基礎單位數
@@ -124,6 +125,14 @@ public class SimpleInputParser {
 		}
 		if ((m = HEADER_K.matcher(line)).matches()) {
 			song.header.key = m.group(1);
+			return true;
+		}
+		if ((m = HEADER_T.matcher(line)).matches()) {
+			try {
+				song.header.transposeSemitones = Integer.parseInt(m.group(1));
+			} catch (NumberFormatException exception) {
+				throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行：T: 移調值超出整數範圍");
+			}
 			return true;
 		}
 		return false;

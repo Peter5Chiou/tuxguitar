@@ -15,6 +15,7 @@ public class SimpleInputSong {
 		public int unitDenominator = 8;  // L: 分母
 		public Integer tempo;            // Q: BPM，可為 null
 		public String key;               // K:，可為 null
+		public int transposeSemitones;    // T: 全曲移調半音數
 	}
 
 	/** 一個刷法/單音/休止事件（@ 展開後） */

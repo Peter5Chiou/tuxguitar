@@ -10,6 +10,10 @@ import java.util.Map;
  * frets[0]=實際弦6(最粗) … frets[5]=實際弦1(最細)，-1=不發音。
  */
 public class SimpleInputChordDictionary {
+	// Standard tuning, indexed by 6 - string number (same convention as ChordInfo.frets).
+	private static final int[] STANDARD_TUNING = {40, 45, 50, 55, 59, 64};
+	private static final String[] SHARP_ROOTS = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+	private static final String[] FLAT_ROOTS = {"C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"};
 
 	public static class ChordInfo {
 		public String name;
@@ -44,6 +48,8 @@ public class SimpleInputChordDictionary {
 		add("A", new int[]{-1, 0, 2, 2, 2, 0}, 5);
 		// A7: x02020
 		add("A7", new int[]{-1, 0, 2, 0, 2, 0}, 5);
+		// Am7: x02010
+		add("Am7", new int[]{-1, 0, 2, 0, 1, 0}, 5);
 		// D7: xx0212
 		add("D7", new int[]{-1, -1, 0, 2, 1, 2}, 4);
 		// E7: 020100
@@ -96,6 +102,122 @@ public class SimpleInputChordDictionary {
 			shifted.frets[i] = source.frets[i] < 0 ? -1 : source.frets[i] + position;
 		}
 		return shifted;
+	}
+
+	/** Transpose every chord tone, revoicing and using octave equivalents only when required by range. */
+	public ChordInfo transpose(ChordInfo source, int semitones, String transposedName) {
+		ChordInfo result = new ChordInfo();
+		result.name = transposedName;
+		java.util.Arrays.fill(result.frets, -1);
+		if (semitones == 0) {
+			result.frets = source.frets.clone();
+			result.rootString = source.rootString;
+			return result;
+		}
+
+		List<ChordTone> tones = new ArrayList<>();
+		for (Integer string : source.soundingStrings()) {
+			int fret = source.frets[6 - string];
+			long pitch = (long) STANDARD_TUNING[6 - string] + fret + semitones;
+			tones.add(new ChordTone(string, (long) fret + semitones, pitch));
+		}
+		ChordPlacement placement = new ChordPlacement(tones);
+		placement.search(0, 0);
+		if (!placement.found) {
+			return null;
+		}
+		for (int i = 0; i < tones.size(); i++) {
+			int string = placement.bestStrings[i];
+			result.frets[6 - string] = placement.bestFrets[i];
+			if (tones.get(i).sourceString == source.rootString) {
+				result.rootString = string;
+			}
+		}
+		return result;
+	}
+
+	/** Move only the chord root; chord quality and spelling suffix are preserved. */
+	public String transposeName(String name, int semitones) {
+		java.util.regex.Matcher matcher = java.util.regex.Pattern
+			.compile("^([A-G][#b]?)(.*)$")
+			.matcher(name);
+		if (!matcher.matches()) {
+			return null;
+		}
+		Integer root = semitone(matcher.group(1));
+		if (root == null) {
+			return null;
+		}
+		int transposedRoot = (int) Math.floorMod((long) root + semitones, 12L);
+		String[] spellings = matcher.group(1).contains("b") ? FLAT_ROOTS : SHARP_ROOTS;
+		return spellings[transposedRoot] + matcher.group(2);
+	}
+
+	private static class ChordTone {
+		final int sourceString;
+		final long preferredFret;
+		final long pitch;
+
+		ChordTone(int sourceString, long preferredFret, long pitch) {
+			this.sourceString = sourceString;
+			this.preferredFret = preferredFret;
+			this.pitch = pitch;
+		}
+	}
+
+	/** Brute-force at most 6! string assignments; favors the original string and fret. */
+	private static class ChordPlacement {
+		final List<ChordTone> tones;
+		final int[] strings;
+		final int[] frets;
+		final boolean[] usedStrings = new boolean[7];
+		int[] bestStrings;
+		int[] bestFrets;
+		long bestScore = Long.MAX_VALUE;
+		boolean found;
+
+		ChordPlacement(List<ChordTone> tones) {
+			this.tones = tones;
+			this.strings = new int[tones.size()];
+			this.frets = new int[tones.size()];
+		}
+
+		void search(int index, long score) {
+			if (score >= bestScore) {
+				return;
+			}
+			if (index == tones.size()) {
+				bestScore = score;
+				bestStrings = strings.clone();
+				bestFrets = frets.clone();
+				found = true;
+				return;
+			}
+			ChordTone tone = tones.get(index);
+			for (int string = 1; string <= 6; string++) {
+				if (usedStrings[string]) {
+					continue;
+				}
+				int tuning = STANDARD_TUNING[6 - string];
+				long minOctave = ceilDiv((long) tuning - tone.pitch, 12L);
+				long maxOctave = Math.floorDiv((long) tuning + 24L - tone.pitch, 12L);
+				for (long octave = minOctave; octave <= maxOctave; octave++) {
+					long fretValue = tone.pitch + octave * 12L - tuning;
+					int fret = (int) fretValue;
+					long cost = Math.abs(octave) * 1000000L + (string == tone.sourceString ? 0 : 10000)
+						+ Math.abs((long) fret - tone.preferredFret) * 100L + fret;
+					usedStrings[string] = true;
+					strings[index] = string;
+					frets[index] = fret;
+					search(index + 1, score + cost);
+					usedStrings[string] = false;
+				}
+			}
+		}
+
+		private long ceilDiv(long dividend, long divisor) {
+			return -Math.floorDiv(-dividend, divisor);
+		}
 	}
 
 	/** 支援 E/Em/A/Am 形升降半音推移，如 F#m、Bb、C#m、G#7 等。

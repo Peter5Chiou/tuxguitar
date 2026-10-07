@@ -150,14 +150,37 @@ public class SimpleInputSongBuilder {
 	private long buildSegment(TGSongManager manager, TGSong song, TGMeasure measure, SimpleInputSong src,
 			SimpleInputSong.ChordSegment segment, long start, long unitTime, int measureUnits) throws SimpleInputFormatException {
 
+		SimpleInputChordDictionary.ChordInfo sourceChordInfo = null;
 		SimpleInputChordDictionary.ChordInfo chordInfo = null;
+		String chordDisplayName = segment.chordName;
 		if (segment.chordName != null) {
-			chordInfo = this.chordDictionary.find(segment.chordName);
-			if (chordInfo == null) {
+			sourceChordInfo = this.chordDictionary.find(segment.chordName);
+			if (sourceChordInfo == null) {
 				throw new SimpleInputFormatException("SimpleInput: 第 " + segment.line + " 行：未識別的和弦「" + segment.chordName + "」");
 			}
 			if (segment.position != null) {
-				chordInfo = this.chordDictionary.atPosition(chordInfo, segment.position);
+				sourceChordInfo = this.chordDictionary.atPosition(sourceChordInfo, segment.position);
+			}
+			if (src.header.transposeSemitones != 0) {
+				chordDisplayName = this.chordDictionary.transposeName(segment.chordName, src.header.transposeSemitones);
+				if (chordDisplayName == null) {
+					throw new SimpleInputFormatException("SimpleInput: 第 " + segment.line + " 行：無法移調和弦「" + segment.chordName + "」");
+				}
+				// Prefer the target chord's normal voicing (including open chords). For an
+				// unsupported target quality, transpose the original voicing exactly.
+				chordInfo = this.chordDictionary.find(chordDisplayName);
+				if (chordInfo != null) {
+					if (segment.position != null) {
+						chordInfo = this.chordDictionary.atPosition(chordInfo, segment.position);
+					}
+				} else {
+					chordInfo = this.chordDictionary.transpose(sourceChordInfo, src.header.transposeSemitones, chordDisplayName);
+				}
+				if (chordInfo == null) {
+					throw new SimpleInputFormatException(segmentContext(segment) + "：移調後和弦「" + chordDisplayName + "」無法在 0 到 24 品內配置指法");
+				}
+			} else {
+				chordInfo = sourceChordInfo;
 			}
 		}
 
@@ -174,7 +197,7 @@ public class SimpleInputSongBuilder {
 			// 無 pattern：一次 d 刷全和弦，持續 segmentUnits
 			if (chordInfo != null) {
 				buildStrumBeat(manager, measure, src, chordInfo, start, Math.round(segmentUnits * unitTime), true, null, null, null, 0, false, null, segment.line, segmentContext(segment));
-				addChordToBeat(measure, start, chordInfo, segment.chordName);
+				addChordToBeat(measure, start, chordInfo, chordDisplayName);
 			} else {
 				buildRestBeat(measure, start, Math.round(segmentUnits * unitTime), 0);
 			}
@@ -238,7 +261,7 @@ public class SimpleInputSongBuilder {
 					if (ev.strings.size() == 1) {
 						int userString = ev.strings.get(0);
 						int realString = SimpleStringUtil.toRealString(userString);
-						buildNoteBeat(measure, src, chordInfo, current, evTime, realString, ev.forcedFrets, ev.tuplet, ev.velocity, ev.line, segmentContext(segment));
+						buildInputNoteBeat(measure, src, chordInfo, current, evTime, realString, ev.forcedFrets, ev.tuplet, ev.velocity, ev.line, segmentContext(segment));
 					} else {
 						buildMultiNoteBeat(measure, src, chordInfo, current, evTime, SimpleStringUtil.toRealStrings(ev.strings), ev.forcedFrets, ev.tuplet, ev.velocity, ev.line, segmentContext(segment));
 					}
@@ -251,7 +274,7 @@ public class SimpleInputSongBuilder {
 					throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：未知事件類型 " + ev.type);
 			}
 			if (!chordShown && chordInfo != null) {
-				addChordToBeat(measure, current, chordInfo, segment.chordName);
+				addChordToBeat(measure, current, chordInfo, chordDisplayName);
 				chordShown = true;
 			}
 			current += evTime;
@@ -327,6 +350,53 @@ public class SimpleInputSongBuilder {
 		return fret;
 	}
 
+	/** Build a picked note from the transposed chord voicing, or from a transposed forced fret. */
+	private void buildInputNoteBeat(TGMeasure measure, SimpleInputSong src,
+			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration,
+			int realString, Map<Integer, Integer> forcedFrets, int tuplet, Integer velocity, int line, String context) throws SimpleInputFormatException {
+		int fret = inputFret(src, chordInfo, realString, forcedFrets, line, context);
+		TGBeat beat = getBeat(measure, preciseStart);
+		TGVoice voice = beat.getVoice(0);
+		voice.setEmpty(false);
+		setDuration(voice, preciseDuration, tuplet);
+		TGNote note = this.factory.newNote();
+		note.setString(realString);
+		note.setValue(fret);
+		note.setVelocity(velocity != null ? velocity.intValue() : TGVelocities.DEFAULT);
+		voice.addNote(note);
+	}
+
+	private int inputFret(SimpleInputSong src, SimpleInputChordDictionary.ChordInfo chordInfo,
+			int realString, Map<Integer, Integer> forcedFrets, int line, String context) throws SimpleInputFormatException {
+		int userString = SimpleStringUtil.toUserString(realString);
+		int fret = 0;
+		if (forcedFrets != null && forcedFrets.containsKey(userString)) {
+			fret = forcedFrets.get(userString);
+		} else if (chordInfo != null) {
+			fret = chordInfo.frets[6 - realString];
+			if (fret < 0) {
+				// Single-note events treat muted chord strings as open strings.
+				fret = 0;
+			}
+		} else if (src.header.transposeSemitones != 0) {
+			// Without a chord, an unforced string note starts as an open-string note.
+			return shiftedInputFret(0, src.header.transposeSemitones, userString, line, context);
+		}
+		if (forcedFrets == null || !forcedFrets.containsKey(userString)) {
+			return fret;
+		}
+		return shiftedInputFret(fret, src.header.transposeSemitones, userString, line, context);
+	}
+
+	private int shiftedInputFret(int fret, int semitones, int userString, int line, String context) throws SimpleInputFormatException {
+		long transposedFret = (long) fret + semitones;
+		if (transposedFret < 0 || transposedFret > 24) {
+			throw new SimpleInputFormatException("SimpleInput: 第 " + line + " 行（" + context + "）：移調後第 " + userString + " 弦需要第 " + transposedFret
+				+ " 品，超出 0 到 24 品範圍；指定弦的單音／強制品位無法自動換弦");
+		}
+		return (int) transposedFret;
+	}
+
 	/** 根音/單弦單音。forcedFrets 有該弦（使用者編號）時覆寫品位；velocity 力度（null = 預設）；tuplet 連音數（0=無） */
 	private void buildNoteBeat(TGMeasure measure, SimpleInputSong src,
 			SimpleInputChordDictionary.ChordInfo chordInfo, long preciseStart, long preciseDuration, int realString, Map<Integer, Integer> forcedFrets, int tuplet, Integer velocity, int line, String context) throws SimpleInputFormatException {
@@ -365,20 +435,7 @@ public class SimpleInputSongBuilder {
 		voice.setEmpty(false);
 		setDuration(voice, preciseDuration, tuplet);
 		for (Integer realString : realStrings) {
-			int fret = 0;
-			if (chordInfo != null) {
-				fret = chordInfo.frets[6 - realString];
-				if (fret < 0) {
-					// 和弦圖的悶弦標記不套用到指法，未指定品位時使用空弦。
-					fret = 0;
-				}
-			}
-			if (forcedFrets != null) {
-				int userStringNo = SimpleStringUtil.toUserString(realString);
-				if (forcedFrets.containsKey(userStringNo)) {
-					fret = forcedFrets.get(userStringNo);
-				}
-			}
+			int fret = inputFret(src, chordInfo, realString, forcedFrets, line, context);
 			TGNote note = this.factory.newNote();
 			note.setString(realString);
 			note.setValue(fret);
