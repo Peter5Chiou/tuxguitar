@@ -31,6 +31,9 @@ public class TGSynthSongWriter implements TGSongWriter {
 
 	public static final TGFileFormat FILE_FORMAT = new TGSynthAudioFormat();
 
+	// Peak level used when normalizing the exported audio (90% of full scale).
+	private static final float NORMALIZE_LEVEL = 0.9f;
+
 	private TGContext context;
 
 	public TGSynthSongWriter(TGContext context) {
@@ -74,7 +77,8 @@ public class TGSynthSongWriter implements TGSongWriter {
 					sequence.forward();
 				}
 				duration = duration / TGAudioBuffer.CHANNELS;
-				ByteArrayInputStream byteBuffer = new ByteArrayInputStream(audioBuffer.toByteArray());
+				byte[] audioData = this.normalize(audioBuffer.toByteArray());
+				ByteArrayInputStream byteBuffer = new ByteArrayInputStream(audioData);
 				AudioInputStream sourceStream = new AudioInputStream(byteBuffer, TGAudioLine.AUDIO_FORMAT, duration);
 				AudioInputStream targetStream = AudioSystem.getAudioInputStream(settings.getFormat(), sourceStream);
 				AudioSystem.write(targetStream, settings.getType(), out);
@@ -82,6 +86,45 @@ public class TGSynthSongWriter implements TGSongWriter {
 		} catch(Throwable throwable) {
 			throw new TGFileFormatException(throwable);
 		}
+	}
+
+	/**
+	 * Normalizes 16-bit signed little-endian PCM data so that its peak sample
+	 * reaches {@link #NORMALIZE_LEVEL} of the full scale. This makes the
+	 * exported audio file noticeably louder without clipping.
+	 */
+	private byte[] normalize(byte[] data) {
+		int sampleCount = data.length / 2;
+		if( sampleCount == 0 ) {
+			return data;
+		}
+
+		int peak = 0;
+		for(int i = 0; i < sampleCount; i ++) {
+			int sample = (short) (((data[(i * 2) + 1] & 0xFF) << 8) | (data[i * 2] & 0xFF));
+			int abs = Math.abs(sample);
+			if( abs > peak ) {
+				peak = abs;
+			}
+		}
+
+		if( peak == 0 ) {
+			return data;
+		}
+
+		double gain = (NORMALIZE_LEVEL * Short.MAX_VALUE) / peak;
+		for(int i = 0; i < sampleCount; i ++) {
+			int sample = (short) (((data[(i * 2) + 1] & 0xFF) << 8) | (data[i * 2] & 0xFF));
+			int scaled = (int) Math.round(sample * gain);
+			if( scaled > Short.MAX_VALUE ) {
+				scaled = Short.MAX_VALUE;
+			} else if( scaled < Short.MIN_VALUE ) {
+				scaled = Short.MIN_VALUE;
+			}
+			data[i * 2] = (byte) (scaled & 0xFF);
+			data[(i * 2) + 1] = (byte) ((scaled >> 8) & 0xFF);
+		}
+		return data;
 	}
 
 	private void loadSynthPrograms(TGSynthModel tgSynthModel, TGSong tgSong) throws MidiPlayerException {

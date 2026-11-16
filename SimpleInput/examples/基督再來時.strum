@@ -3,10 +3,10 @@ M:3/4
 L:1/8
 Q:1/4=76
 K:Em
-T:+5
+T:+0
 
-% @basic  =  x2!f d:123!mf u:321!mp d:123!mp u:321!p
-@basic = t2 (12)*2 (12)*2
+@basic  =  x2!f d:123!mf u:321!mp d:123!mp u:321!p
+% @basic = t2 (12)*2 (12)*2
 @end = x2 d:123 u:321
 @f4 = d d d d d d d d
 @island = d2 u d u d2 u

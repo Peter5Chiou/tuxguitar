@@ -1,0 +1,16 @@
+% SimpleInput 範例：反覆（|: ... :|）
+M:4/4
+L:1/8
+Q:1/4=90
+K:C
+
+@basic = d2u2d2u2
+
+% 這段總共彈 2 次（未寫數字，預設 2）
+|: G(4) @basic | C(4) @basic :|
+
+% 這段總共彈 3 次
+|: Am(4) @basic | F(4) @basic :|3
+
+% 這段總共彈 4 次
+|: C(4) @basic | G(4) @basic :|4 ||

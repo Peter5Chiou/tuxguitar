@@ -77,6 +77,7 @@ public class SimpleInputParser {
 
 		parseBody(song, bodyLines);
 		validateSegments(song);
+		validateRepeats(song);
 		return song;
 	}
 
@@ -149,49 +150,130 @@ public class SimpleInputParser {
 
 	// ---- 譜面解析 ----
 
+	/** 掃描中的原始小節（尚未解析成 IR） */
+	private static class RawMeasure {
+		String text;
+		int line;
+		boolean repeatOpen;
+		int repeatCount; // 0 = 無反覆；>=2 = 總演奏次數
+	}
+
 	private void parseBody(SimpleInputSong song, List<String> lines) throws SimpleInputFormatException {
 		StringBuilder current = new StringBuilder();
 		int currentLine = -1;
+		boolean pendingRepeatOpen = false;
+		int pendingRepeatOpenLine = -1;
+		boolean pendingRepeatClose = false;
+		RawMeasure lastClosed = null;
 
-		List<String> measureTexts = new ArrayList<>();
-		List<Integer> measureLineNos = new ArrayList<>();
+		List<RawMeasure> rawMeasures = new ArrayList<>();
 
 		for (int i = 0; i < lines.size(); i++) {
 			String line = lines.get(i);
 			int lineNo = bodyLineNumbers.get(i);
-			// 以 | 切小節；|| 或 |] 為結尾
-			String[] parts = line.split("\\|", -1);
-			for (int p = 0; p < parts.length; p++) {
-				String part = parts[p].trim();
-				boolean isFinal = p == parts.length - 1;
-				if (!part.isEmpty()) {
+			int pos = 0;
+			while (pos <= line.length()) {
+				int bar = line.indexOf('|', pos);
+				String segment = (bar < 0) ? line.substring(pos) : line.substring(pos, bar);
+
+				// :|N 的次數可能寫在下一個片段開頭（如 :|3 或 :| 3）
+				if (pendingRepeatClose) {
+					Matcher countMatcher = Pattern.compile("^\\s*(\\d+)(.*)$").matcher(segment);
+					if (countMatcher.matches()) {
+						int total = Integer.parseInt(countMatcher.group(1));
+						if (total < 2) {
+							throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行：反覆次數必須 >= 2（目前 " + total + "）");
+						}
+						if (lastClosed != null) {
+							lastClosed.repeatCount = total;
+						}
+						segment = countMatcher.group(2);
+					}
+					pendingRepeatClose = false;
+				}
+
+				// 反覆結束 :|（冒號在 | 之前）
+				String trimmed = segment.trim();
+				boolean repeatCloseHere = false;
+				if (trimmed.endsWith(":")) {
+					repeatCloseHere = true;
+					trimmed = trimmed.substring(0, trimmed.length() - 1).trim();
+				}
+
+				if (!trimmed.isEmpty()) {
 					if (current.length() == 0) {
 						currentLine = lineNo;
 					}
-					current.append(part);
+					current.append(trimmed);
 				}
-				if (!isFinal) {
-					if (current.length() > 0) {
-						measureTexts.add(current.toString());
-						measureLineNos.add(currentLine);
-						current = new StringBuilder();
+
+				if (bar < 0) {
+					break;
+				}
+
+				// 遇到小節線：結束目前小節
+				if (current.length() > 0) {
+					RawMeasure raw = new RawMeasure();
+					raw.text = current.toString();
+					raw.line = currentLine;
+					raw.repeatOpen = pendingRepeatOpen;
+					pendingRepeatOpen = false;
+					if (repeatCloseHere) {
+						raw.repeatCount = 2; // 未寫數字時預設總共 2 次
+						pendingRepeatClose = true;
+						lastClosed = raw;
 					}
+					rawMeasures.add(raw);
+					current = new StringBuilder();
+				} else if (repeatCloseHere) {
+					// :| 出現在多餘的小節線之後（如「G @G| :|」），套用到上一個小節
+					if (rawMeasures.isEmpty()) {
+						throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行：反覆結束 :| 前面沒有可反覆的小節");
+					}
+					RawMeasure raw = rawMeasures.get(rawMeasures.size() - 1);
+					raw.repeatCount = 2;
+					pendingRepeatClose = true;
+					lastClosed = raw;
+				}
+
+				// 反覆開始 |:（冒號在 | 之後，允許空白）
+				// 注意：若冒號後面緊接 |（即「| :|」），那是「多餘小節線 + :|」，
+				// 不是 |:，不可在此消耗冒號，留給下一輪偵測 :|。
+				pos = bar + 1;
+				while (pos < line.length() && Character.isWhitespace(line.charAt(pos))) {
+					pos++;
+				}
+				if (pos < line.length() && line.charAt(pos) == ':'
+						&& (pos + 1 >= line.length() || line.charAt(pos + 1) != '|')) {
+					pendingRepeatOpen = true;
+					pendingRepeatOpenLine = lineNo;
+					pos++;
+				}
+				// 跳過 |] 的 ]
+				if (pos < line.length() && line.charAt(pos) == ']') {
+					pos++;
 				}
 			}
-			// 行尾若以 |] 結束，視為最後小節結束
-			if (line.endsWith("|]") && current.length() > 0) {
-				measureTexts.add(current.toString());
-				measureLineNos.add(currentLine);
-				current = new StringBuilder();
-			}
-		}
-		if (current.length() > 0) {
-			measureTexts.add(current.toString());
-			measureLineNos.add(currentLine);
 		}
 
-		for (int i = 0; i < measureTexts.size(); i++) {
-			song.measures.add(parseMeasure(measureTexts.get(i), measureLineNos.get(i), i, song));
+		if (current.length() > 0) {
+			RawMeasure raw = new RawMeasure();
+			raw.text = current.toString();
+			raw.line = currentLine;
+			raw.repeatOpen = pendingRepeatOpen;
+			pendingRepeatOpen = false;
+			rawMeasures.add(raw);
+		}
+		if (pendingRepeatOpen) {
+			throw new SimpleInputFormatException("SimpleInput: 第 " + pendingRepeatOpenLine + " 行：反覆開始 |: 缺少對應的 :|");
+		}
+
+		for (int i = 0; i < rawMeasures.size(); i++) {
+			RawMeasure raw = rawMeasures.get(i);
+			SimpleInputSong.Measure measure = parseMeasure(raw.text, raw.line, i, song);
+			measure.repeatOpen = raw.repeatOpen;
+			measure.repeatCount = raw.repeatCount;
+			song.measures.add(measure);
 		}
 		if (song.measures.isEmpty()) {
 			throw new SimpleInputFormatException("SimpleInput: 沒有任何小節內容");
@@ -205,7 +287,7 @@ public class SimpleInputParser {
 			// 以和弦記號切分段落：和弦名 + 可選把位 + 可選括號拍數 + 後續事件
 			// 括號群組 (6 3 2 1) 或 (6 3=4 2=5 1=3) 內部可含空格，需視為單一 token
 			// 連音群組 [..] 內部可含空格，需視為單一 token
-		Matcher m = Pattern.compile("([A-G][A-Za-z0-9#b]*(?:@\\d+)?(?:\\(\\d+\\))?)|(@[A-Za-z0-9_]+)|(\\([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*\\)(?:\\d*(?:[*/]\\d+)?)?(?:!(?:ppp|pp|p|mp|mf|f|ff|fff))?)|(\\[[^\\]]*\\])|([^\\s]+)").matcher(text);
+		Matcher m = Pattern.compile("([A-G][A-Za-z0-9#b]*(?:@\\d+)?(?:\\(\\d+\\))?)|(@[A-Za-z0-9_]+(?:!\\w+)?)|(\\([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*\\)(?:\\d*(?:[*/]\\d+)?)?(?:!(?:fff|ff|f|ppp|pp|p|mp|mf))?)|(\\[[^\\]]*\\])|([^\\s]+)").matcher(text);
 		List<String> tokens = new ArrayList<>();
 		while (m.find()) {
 			tokens.add(m.group());
@@ -215,7 +297,30 @@ public class SimpleInputParser {
 		while (i < tokens.size()) {
 			String token = tokens.get(i);
 			if (token.startsWith("@")) {
-				String name = token.substring(1);
+				String rawName = token.substring(1);
+				Matcher seqMatcher = Pattern.compile("^seq([1-8])(?:!(\\w+))?$", Pattern.CASE_INSENSITIVE).matcher(rawName);
+				if (seqMatcher.matches()) {
+					int seqId = Integer.parseInt(seqMatcher.group(1));
+					Integer vel = velocityOf(seqMatcher.group(2), lineNo, index);
+					SimpleInputSong.Event ev = new SimpleInputSong.Event();
+					ev.type = 'S';
+					ev.seqIndex = seqId;
+					ev.velocity = vel;
+					ev.line = lineNo;
+					SimpleInputSong.ChordSegment targetSeg;
+					if (!measure.segments.isEmpty()) {
+						targetSeg = measure.segments.get(measure.segments.size() - 1);
+					} else {
+						targetSeg = new SimpleInputSong.ChordSegment();
+						targetSeg.chordName = null;
+						targetSeg.line = lineNo;
+						measure.segments.add(targetSeg);
+					}
+					targetSeg.events.add(ev);
+					i++;
+					continue;
+				}
+				String name = rawName;
 				String def = song.definitions.get(name);
 				if (def == null) {
 					throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (index + 1) + " 小節：未定義的刷法「@" + name + "」");
@@ -491,6 +596,17 @@ public class SimpleInputParser {
 			int measureNo = i + 1;
 			double total = 0;
 			for (SimpleInputSong.ChordSegment seg : measure.segments) {
+				// 自動填充內建 @seq1 ~ @seq8 事件的時值單位
+				for (SimpleInputSong.Event ev : seg.events) {
+					if (ev.type == 'S' && ev.durationUnits <= 0) {
+						if (seg.durationUnits > 0) {
+							ev.durationUnits = seg.durationUnits;
+						} else {
+							ev.durationUnits = totalUnitsPerMeasure;
+							seg.durationUnits = totalUnitsPerMeasure;
+						}
+					}
+				}
 				double pUnits = patternUnits(seg);
 				if (seg.durationUnits > 0 && pUnits > 0 && !sameUnits(pUnits, seg.durationUnits)) {
 					throw new SimpleInputFormatException("SimpleInput: 第 " + seg.line + " 行、第 " + measureNo + " 小節：和弦「" + seg.chordName
@@ -540,5 +656,32 @@ public class SimpleInputParser {
 
 	private boolean sameUnits(double left, double right) {
 		return Math.abs(left - right) < 0.000001;
+	}
+
+	/** 驗證反覆標記：只支援單一層，且 |: 與 :| 必須成對 */
+	private void validateRepeats(SimpleInputSong song) throws SimpleInputFormatException {
+		int openIndex = -1;
+		for (int i = 0; i < song.measures.size(); i++) {
+			SimpleInputSong.Measure measure = song.measures.get(i);
+			if (measure.repeatOpen) {
+				if (openIndex >= 0) {
+					throw new SimpleInputFormatException("SimpleInput: 第 " + measure.line + " 行、第 " + (i + 1)
+						+ " 小節：不支援巢狀反覆（前一個 |: 尚未以 :| 結束）");
+				}
+				openIndex = i;
+			}
+			if (measure.repeatCount > 0) {
+				if (openIndex < 0) {
+					throw new SimpleInputFormatException("SimpleInput: 第 " + measure.line + " 行、第 " + (i + 1)
+						+ " 小節：反覆結束 :| 缺少對應的 |:");
+				}
+				openIndex = -1;
+			}
+		}
+		if (openIndex >= 0) {
+			SimpleInputSong.Measure measure = song.measures.get(openIndex);
+			throw new SimpleInputFormatException("SimpleInput: 第 " + measure.line + " 行、第 " + (openIndex + 1)
+				+ " 小節：反覆開始 |: 缺少對應的 :|");
+		}
 	}
 }

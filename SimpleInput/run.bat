@@ -1,0 +1,1 @@
+java -cp "../common/TuxGuitar-simpleinput/target/classes;../common/TuxGuitar-lib/target/classes;tools" AmpleGuitarExporter %1 output

@@ -20,7 +20,8 @@ public class SimpleInputSong {
 
 	/** 一個刷法/單音/休止事件（@ 展開後） */
 	public static class Event {
-		public char type;          // 'd','u','t','n','c'(chord-pick),'r'(rest),'x'(muted strum)
+		public char type;          // 'd','u','t','n','c'(chord-pick),'r'(rest),'x'(muted strum),'S'(Ample SEQ Pattern)
+		public Integer seqIndex;   // Ample Guitar Strummer 內建 SEQ 編號 (1 ~ 8)；若為普通事件則為 null
 		public double durationUnits;  // 單位數（縮放後）
 		public List<Integer> strings; // 使用者編號（1~6），null = 全和弦
 		public Map<Integer, Integer> forcedFrets; // 使用者弦號 → 強制品位（如 2:3），可為 null
@@ -44,6 +45,8 @@ public class SimpleInputSong {
 		public List<ChordSegment> segments = new ArrayList<>();
 		public int line;
 		public double units; // 此小節實際總基礎單位數（validateSegments 填寫；供 builder 設定長度/拍號）
+		public boolean repeatOpen; // |: 反覆開始
+		public int repeatCount;    // 0 = 無反覆；>=2 = 總演奏次數（:|N，未寫 N 時為 2）
 	}
 
 	public Header header = new Header();

@@ -65,6 +65,14 @@ public class SimpleInputSongBuilder {
 			header.setStart(start);
 			header.getTempo().copyFrom(tempo);
 			header.getTimeSignature().copyFrom(ts);
+			// 反覆：|: → repeatOpen；:|N → repeatClose = N - 1
+			// （TuxGuitar 以「額外反覆次數」儲存，總演奏次數 = repeatClose + 1）
+			if (m.repeatOpen) {
+				header.setRepeatOpen(true);
+			}
+			if (m.repeatCount > 0) {
+				header.setRepeatClose(m.repeatCount - 1);
+			}
 			// 弱起歌曲：把第一小節與末小節設成「實際拍數」的拍號（只處理整拍；非整拍維持原拍號）
 			boolean isPickupHead = (i == 0 || i == n - 1) && src.pickup;
 			if (isPickupHead) {
@@ -269,6 +277,13 @@ public class SimpleInputSongBuilder {
 				}
 				case 'r':
 					buildRestBeat(measure, current, evTime, ev.tuplet);
+					break;
+				case 'S':
+					if (chordInfo != null) {
+						buildStrumBeat(manager, measure, src, chordInfo, current, evTime, true, null, null, ev.strokeDenominator, ev.tuplet, false, ev.velocity, ev.line, segmentContext(segment));
+					} else {
+						buildRestBeat(measure, current, evTime, ev.tuplet);
+					}
 					break;
 				default:
 					throw new SimpleInputFormatException("SimpleInput: 第 " + ev.line + " 行：未知事件類型 " + ev.type);

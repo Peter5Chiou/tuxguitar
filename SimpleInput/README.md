@@ -48,6 +48,37 @@ G(4) @basic | C(4) @island | Am(4) @arp | F(4) @basic C(4) @basic ||
     Em@7(2)      % Em 按型從第7品開始，持續2拍
     指定把位會將該和弦按型的所有非悶弦品位整體平移；把位範圍為 1~24。
 
+### 反覆（`|: ... :|`）
+
+用 `|:` 與 `:|` 包住要反覆的小節。`:|` 後可接數字 N，表示**總共演奏 N 次**（不是額外再彈 N 次）：
+
+| 寫法 | 意思 |
+|---|---|
+| `|: ... :|` | 總共演奏 2 次（反覆 1 次） |
+| `|: ... :|2` | 同上，總共 2 次 |
+| `|: ... :|3` | 總共演奏 3 次 |
+| `|: ... :|4` | 總共演奏 4 次 |
+
+- 數字緊接在 `:|` 後面，中間可有空白：`:|3` 或 `:| 3` 都接受。
+- 沒寫數字時，預設當作 `:|2`（總共 2 次）。
+- `|:` 與 `:|` 可以跨多行：反覆區段可橫跨任意多行，只要 `|:` 在第一個小節前、`:|` 在最後一個小節後即可。
+- `:|` 前若有多餘的小節線（如 `G @G| :|`）也可接受，會套用到前一個小節。
+- 目前只支援單一層反覆（不處理巢狀反覆、`1.` `2.` 結尾等複雜情況）。
+- 注意：TuxGuitar 內部以「額外反覆次數」儲存，因此 `:|3` 在譜面上會顯示為 `x2`（總次數 3 = 額外 2 次），但播放次數正確。
+
+範例：
+
+```
+% 這段總共彈 2 次
+|: G(4) @basic | C(4) @basic :|
+
+% 同上（明確寫 2）
+|: G(4) @basic | C(4) @basic :|2
+
+% 這段總共彈 3 次
+|: G(4) @basic | C(4) @basic | Am(4) @basic | F(4) @basic :|3
+```
+
 ### 事件符號
 
 | 符號 | 意思 |
@@ -59,6 +90,7 @@ G(4) @basic | C(4) @island | Am(4) @arp | F(4) @basic C(4) @basic ||
 | `1`~`6` | 彈單一弦；和弦圖的 `x` 不限制指法，未指定品位時使用空弦 |
 | `(23)` | 同時彈 2、3 弦；和弦圖的 `x` 不限制指法。可接 `*N`/`/N` 調整時值，如 `(6321)*2`；括號內數字可用空格分隔，如 `(6 3 2 1)*2`。括號內每根弦可指定品位，如 `(6 3=4 2=5 1=3)*2`（弦 3 按 4 品、弦 2 按 5 品、弦 1 按 3 品，弦 6 用和弦原品位） |
 | `2=3` | 強制品位：第 2 弦強制按第 3 品（覆寫和弦原按法） |
+| `@seq1`~`@seq8` | Ample Guitar 內建音序器刷法（免檔頭定義，自動填滿和弦拍數） |
 | `z` 或 `-` | 休止 |
 
 數字可接在 `d`/`u` 後：`d2` = 下刷 2 單位；指定弦用冒號：`d2:45` = 下刷 2 單位只刷 4、5 弦。刷法指定到和弦圖的 `x` 弦時，會輸出悶音。
@@ -114,6 +146,21 @@ d~32 u d~16 u   % 最後面的 u 是 16 分音符（d~16 之後）
 
 支援 8 段力度：`ppp`、`pp`、`p`、`mp`、`mf`、`f`、`ff`、`fff`（對應 TuxGuitar 的力度值）。力度只套用該事件本身，**不繼承**；未指定 `!力度` 的事件維持 TuxGuitar 預設力度（f）。不支援的標記（如 `!x`）會報錯。
 
+### Ample Guitar 內建音序器刷法（`@seq1` ~ `@seq8`）
+
+可以直接在和弦後指定 Ample Guitar Strummer 內建的 Pattern 音序器刷法：
+
+| 寫法 | 意思 |
+|---|---|
+| `G(4) @seq1` | G 和弦持續 4 拍，自動調用 Ample Guitar 內建 Pattern SEQ 1 |
+| `C(4) @seq2` | C 和弦持續 4 拍，調用 Pattern SEQ 2 |
+| `Em(2) @seq1 D(2) @seq3` | 同一小節內不同和弦各自調用不同 SEQ Pattern |
+| `G(4) @seq1!ff` | 可接 `!` 指定力度 |
+
+- **免手動定義**：不需要在檔頭宣告 `@seq1 = ...`，Parser 自動識別為保留關鍵字。
+- **自動撐滿拍數**：自動根據和弦括號內的拍數換算時值（如 `G(4)` 自動佔滿 4 拍），不需手動湊齊八分音符單位數。
+- **MIDI 對應**：匯出至 MIDI 時，會自動輸出對應的 SEQ Keyswitch（`@seq1`=Note 60, `@seq2`=Note 61, `@seq3`=Note 63, `@seq4`=Note 66, `@seq5`=Note 68, `@seq6`=Note 70, `@seq7`=Note 73, `@seq8`=Note 75），在該和弦期間驅動 Ample Guitar 自動演奏內建節奏。TuxGuitar 匯入時則以全刷呈現。
+
 ### 弦編號（特殊習慣）
 
 只有 **1 和 3 對調**，其餘與物理弦號相同：
@@ -148,6 +195,34 @@ d~32 u d~16 u   % 最後面的 u 是 16 分音符（d~16 之後）
 2. **File → Import → SimpleInput Strum**
 3. 選擇 `.strum` 檔
 
+## Ample Guitar + Reaper 匯出 (AmpleGuitarExporter)
+
+提供獨立 CLI 工具，讀取 `.strum` 檔案並輸出至 Reaper + Ample Guitar (Select Mode / Strummer) 專用的控制檔案：
+
+```bash
+# 編譯
+javac -cp "common/TuxGuitar-simpleinput/target/classes;common/TuxGuitar-lib/target/classes" -d SimpleInput/tools SimpleInput/tools/AmpleGuitarExporter.java
+
+# 執行匯出（output_dir 省略時預設輸出至 input.strum 同目錄）
+java -cp "common/TuxGuitar-simpleinput/target/classes;common/TuxGuitar-lib/target/classes;SimpleInput/tools" AmpleGuitarExporter <input.strum> [output_dir]
+```
+
+### 輸出檔案
+
+1. **`<檔名>.chords`（和弦庫 XML）**：
+   - 自動掃描全曲用到的相異指型（支援把位指定與 `弦=品` 強制品位衍生 Slot），依序分配 ID="1" 到 ID="24"（最多支援 24 組，超出時報錯）。
+   - 不足 24 個 Slot 時自動補滿預設 `C Maj`，悶弦標記為 `Fret="-1"`，供 Ample Guitar Select Mode 直接載入。
+2. **`<檔名>_ag.mid`（Reaper 控制訊號標準 MIDI）**：
+   - **標頭與反覆展開**：PPQ=480，寫入 Tempo、Time Signature、和弦變換 Marker；反覆記號 `|: ... :|N` 自動展開成線性時間軸。
+   - **左手和弦槽位切換 (Note 36 ~ 59)**：對應 Slot 1~24（`Note = 35 + Slot_ID`），長音符持續至該和弦結束前 2 ticks；遇強制品位衍生 Slot 時短暫切換並切回。
+   - **右手動作觸發**：
+     - 一般全刷：下刷 `d` = **Note 72 (C4)**、上刷 `u` = **Note 76 (E4)**。
+     - 單弦與根音撥弦：物理弦 6~1（粗→細）對應白鍵 **Note 62 (D3) ~ Note 71 (B3)**；`t` 自動查詢當前和弦根音物理弦送出單音。
+     - 短刷 `x` 與指定弦刷法（如 `d:45`, `u:321`）：依下刷（粗→細）或上刷（細→粗）方向，帶微小 Tick 延遲依序送出單弦白鍵。
+     - Ample 內建音序器：`@seq1`~`@seq8` 對應送出 Keyswitch 音符（C3=60, C#3=61, D#3=63, F#3=66, G#3=68, A#3=70, C#4=73, D#4=75）。
+   - **刷速與 S-Strum Time**：刷弦事件自動發送 `CC #14`（~16 預設為乾脆的 10，~64=0, ~32=5, ~8=35, ~4=75）。
+   - **力度**：`!ppp`~`!fff` 對應 MIDI Velocity 20~127（未指定預設 100）。
+
 ## 建置
 
 ```
@@ -166,7 +241,7 @@ mvn package -DskipTests
   - `SimpleInputChordDictionary.java` — 和弦字典 + 封閉推導（低把位優先）
   - `SimpleInputSongBuilder.java` — IR → TGSong（TGBeat 用 preciseStart）
   - `SimpleInputReader.java` / `SimpleInputReaderPlugin.java` — TGSongReader 進入點
-- 離線測試：`SimpleInput/tools/`（`ParserTest.java`、`BuildTest.java`、`ReaderTest.java`）
+- 離線測試與工具：`SimpleInput/tools/`（`AmpleGuitarExporter.java`、`ParserTest.java`、`BuildTest.java`、`ReaderTest.java`）
 - 規格細節：`SimpleInput/docs/SPEC.md`
 
 ## 版本
@@ -177,3 +252,5 @@ mvn package -DskipTests
 - v1.3：連音群組 `[..]`（三/五/六連音）
 - v1.4：力度指定 `!ppp`~`!fff`（事件尾端，支援 d/u/x/t/單弦/多弦/連音群組）
 - v1.5：全曲移調標頭 `T:`（半音；和弦、單音及強制品位）
+- v1.6：反覆 `|: ... :|` / `:|N`（N = 總演奏次數，預設 2；僅支援單一層）
+- v1.7：Ample Guitar + Reaper 匯出工具（`AmpleGuitarExporter`）；支援 Ample Guitar 內建音序器刷法 `@seq1`~`@seq8`、和弦庫 XML 匯出、反覆記號展開、Keyswitch 與 CC #14 S-Strum 控制
