@@ -1,0 +1,9 @@
+% 由 testdur.strumseq 轉換（StrumSeqImporter）
+% Author=demo, Category=Pop, Quantize=1/16, BPM=120
+M:4/4
+L:1/16
+Q:1/4=120
+
+@testdur = d4:321 d!mf z3 d2:321!mf z2 d2:321!mf z2
+
+G(4) @testdur

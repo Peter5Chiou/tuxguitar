@@ -20,7 +20,8 @@ public class SimpleInputSong {
 
 	/** 一個刷法/單音/休止事件（@ 展開後） */
 	public static class Event {
-		public char type;          // 'd','u','t','n','c'(chord-pick),'r'(rest),'x'(muted strum),'S'(Ample SEQ Pattern)
+		public char type;          // 'd','u','t','n','c'(chord-pick),'r'(rest),'x'(short strum),'X'(dead-note strum),'S'(Ample SEQ Pattern)
+		public boolean muted;      // true = 悶音刷（mu/md，TuxGuitar 以 Palm Mute 標示）
 		public Integer seqIndex;   // Ample Guitar Strummer 內建 SEQ 編號 (1 ~ 8)；若為普通事件則為 null
 		public double durationUnits;  // 單位數（縮放後）
 		public List<Integer> strings; // 使用者編號（1~6），null = 全和弦

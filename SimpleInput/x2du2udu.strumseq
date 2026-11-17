@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Pattern Author="demo" Category="Pop" Time-Signature="4/4" Quantize="1/16"
+         BPM="120">
+  <Note Note="76" Velocity="56" Begin="7" End="7"/>
+  <Note Note="76" Velocity="63" Begin="11" End="11"/>
+  <Note Note="76" Velocity="62" Begin="15" End="15"/>
+  <Note Note="72" Velocity="90" Begin="1" End="1"/>
+  <Note Note="74" Velocity="90" Begin="5" End="5"/>
+  <Note Note="74" Velocity="90" Begin="13" End="13"/>
+</Pattern>

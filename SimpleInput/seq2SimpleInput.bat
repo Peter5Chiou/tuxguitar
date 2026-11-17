@@ -1,0 +1,1 @@
+java tools/StrumSeqToSymbols.java --velocity --full %1

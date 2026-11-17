@@ -292,6 +292,7 @@ public class SimpleInputParser {
 		while (m.find()) {
 			tokens.add(m.group());
 		}
+		System.out.println("DEBUG parseMeasure text=[" + text + "] tokens=" + tokens);
 
 		int i = 0;
 		while (i < tokens.size()) {
@@ -430,7 +431,7 @@ public class SimpleInputParser {
 		List<SimpleInputSong.Event> events = new ArrayList<>();
 		// d/u/t/x/z/- [數字] [*|/倍數] [:弦...] [~刷速] [!力度] 或 弦=品 強制（如 2=3）；(23) 多弦單音（可接 *|/ 時值）；單一數字=單弦
 		Pattern p = Pattern.compile(
-			"(d|u|t|x|z|-)(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?::([1-6]+))?(?:~(\\d+))?(?:!(\\w+))?|" +  // 刷/根音/悶/休止（可接 ~N 刷速、!力度）
+			"(mu|md|d|u|t|x|X|z|-)(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?::([1-6]+))?(?:~(\\d+))?(?:!(\\w+))?|" +  // 刷/根音/悶音刷/死音刷/休止（可接 ~N 刷速、!力度）
 			"([1-6])=(\\d+)(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?:!(\\w+))?|" + // 弦=強制品位（如 2=3）
 			"(\\()([1-6](?:\\s*=\\s*\\d+)?(?:\\s*[1-6](?:\\s*=\\s*\\d+)?)*)(\\))(?:(\\d+)?([*/])(\\d+))?(?:!(\\w+))?|" +   // (23) 或 (6 3=4 2=5 1=3) 多弦（可各指定品位），可接 *|/ 時值、!力度
 			"([1-6])(?:(\\d+)?([*/])(\\d+)|(\\d+))?(?:!(\\w+))?"); // 單弦及時值（可接 !力度）
@@ -454,10 +455,23 @@ public class SimpleInputParser {
 					duration(m.group(11), m.group(12), m.group(13), m.group(14)), lineNo, measureIndex, velocityOf(m.group(15), lineNo, measureIndex));
 				continue;
 			}
-			char type = m.group(1).charAt(0);
+			String symbol = m.group(1);
 			double units = duration(m.group(2), m.group(3), m.group(4), m.group(5));
+			char type;
+			boolean muted = false;
+			if ("mu".equals(symbol)) {
+				type = 'u';
+				muted = true;
+			} else if ("md".equals(symbol)) {
+				type = 'd';
+				muted = true;
+			} else if ("X".equals(symbol)) {
+				type = 'X';
+			} else {
+				type = symbol.charAt(0);
+			}
 			// z 與 - 都是休止，統一改成 'r'（builder 只認 'r' 為休止）
-			addEvent(events, (type == '-' || type == 'z') ? 'r' : type, units, m.group(6), lineNo, measureIndex, m.group(7), velocityOf(m.group(8), lineNo, measureIndex));
+			addEvent(events, (type == '-' || type == 'z') ? 'r' : type, units, m.group(6), lineNo, measureIndex, m.group(7), velocityOf(m.group(8), lineNo, measureIndex), muted);
 		}
 		if (!text.substring(last).trim().isEmpty()) {
 			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：無法解析的符號「" + text.substring(last).trim() + "」");
@@ -498,11 +512,16 @@ public class SimpleInputParser {
 	}
 
 	private void addEvent(List<SimpleInputSong.Event> events, char type, double units, String strings, int lineNo, int measureIndex, String strokeDenominator, Integer velocity) throws SimpleInputFormatException {
+		addEvent(events, type, units, strings, lineNo, measureIndex, strokeDenominator, velocity, false);
+	}
+
+	private void addEvent(List<SimpleInputSong.Event> events, char type, double units, String strings, int lineNo, int measureIndex, String strokeDenominator, Integer velocity, boolean muted) throws SimpleInputFormatException {
 		if (units <= 0) {
 			throw new SimpleInputFormatException("SimpleInput: 第 " + lineNo + " 行、第 " + (measureIndex + 1) + " 小節：時值必須為正數");
 		}
 		SimpleInputSong.Event ev = new SimpleInputSong.Event();
 		ev.type = type;
+		ev.muted = muted;
 		ev.durationUnits = units;
 		ev.line = lineNo;
 		if (strings != null) {
@@ -518,8 +537,8 @@ public class SimpleInputParser {
 			}
 			this.currentStrokeDenominator = den; // 更新全曲刷速狀態
 		}
-		// 刷法事件（d/u/x）套用目前刷速；其餘事件（t/n/r）不套用
-		if (ev.type == 'd' || ev.type == 'u' || ev.type == 'x') {
+		// 刷法事件（d/u/x/X）套用目前刷速；其餘事件（t/n/r）不套用
+		if (ev.type == 'd' || ev.type == 'u' || ev.type == 'x' || ev.type == 'X') {
 			ev.strokeDenominator = this.currentStrokeDenominator;
 		}
 		ev.velocity = velocity;

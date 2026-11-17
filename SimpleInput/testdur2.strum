@@ -1,0 +1,10 @@
+% 由 testdur2.strumseq 轉換（StrumSeqImporter）
+% Author=demo, Category=Pop, Quantize=1/16, BPM=120
+% WARN: Note 78 (Mute 2) 與 Mute 1 在 TuxGuitar 無法區分，以 X 表示
+M:4/4
+L:1/16
+Q:1/4=120
+
+@testdur2 = mu!mf md:321!mf md!mf X!mf X!mf u!mf d:321!mf d!mf z8
+
+G(4) @testdur2

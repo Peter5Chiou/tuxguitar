@@ -1,0 +1,10 @@
+% 由 pon-dala--la-dala.strumseq 轉換（StrumSeqImporter）
+% Author=Peter, Category=Pop, Quantize=1/16, BPM=140
+M:4/4
+L:1/16
+Q:1/4=140
+
+@pon_dala__la_dala = d z3 d!mf z u!mf z3 u!mf z d!mf z u!mf z
+
+G(4) @pon_dala__la_dala |
+C(4) @pon_dala__la_dala

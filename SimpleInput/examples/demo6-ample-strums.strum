@@ -1,0 +1,13 @@
+% Ample Guitar Strummer 14 列對照測試（mu / md / X）
+M:4/4
+L:1/16
+Q:1/4=120
+
+% 8 種刷法各打一次（1/16），後半小節休止
+@all = mu md:321 md X X u d:321 d z8
+
+% 同樣的符號，時值 ×2（1/8）
+@variants = mu2 md2:321 md2 X2 X2:321 u2 d2:321 d2
+
+G(4) @all |
+G(4) @variants

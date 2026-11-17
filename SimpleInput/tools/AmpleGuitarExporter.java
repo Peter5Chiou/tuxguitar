@@ -45,6 +45,11 @@ public class AmpleGuitarExporter {
 	public static final int NOTE_STRUM_DOWN_FULL = 72;     // C4 - Open Down Full
 	public static final int NOTE_STRUM_DOWN_TREBLE = 74;   // D4 - Open Down Mid/Treble
 	public static final int NOTE_STRUM_UP = 76;            // E4 - Open Up Full
+	public static final int NOTE_MUTE_1 = 77;              // F4  - Mute 1 (Slap/Choke 1)
+	public static final int NOTE_MUTE_2 = 78;              // F#4 - Mute 2 (Slap/Choke 2)
+	public static final int NOTE_MUTE_DOWN_BASS = 79;      // G4  - Mute Down Bass
+	public static final int NOTE_MUTE_DOWN_TREBLE = 81;    // A4  - Mute Down Treble
+	public static final int NOTE_MUTE_UP_FULL = 83;        // B4  - Mute Up Full
 
 	// 3. 單弦觸發鍵 (Ample Guitar Strummer: D3 ~ B3 為物理第 6~1 弦單音撥弦)
 	public static final int KEY_STRING_6 = 62; // D3 (物理第 6 弦)
@@ -524,6 +529,25 @@ public class AmpleGuitarExporter {
 					switch (ev.type) {
 						case 'd':
 						case 'u': {
+							if (ev.muted) {
+								// 悶音刷：u → Mute Up Full(83)；d 無指定弦 → Mute Down Bass(79)；d 指定弦 → Mute Down Treble(81)
+								int note;
+								if (ev.type == 'u') {
+									note = NOTE_MUTE_UP_FULL;
+								} else if (ev.strings == null || ev.strings.isEmpty()) {
+									note = NOTE_MUTE_DOWN_BASS;
+								} else {
+									note = NOTE_MUTE_DOWN_TREBLE;
+								}
+								int ccVal = strokeToCC14(ev.strokeDenominator);
+								if (ccVal != lastSentCC14) {
+									rightHandEvents.add(createCCEvent(0, 14, ccVal, evStartTick));
+									lastSentCC14 = ccVal;
+								}
+								rightHandEvents.add(createNoteOnEvent(0, note, vel, evStartTick));
+								rightHandEvents.add(createNoteOffEvent(0, note, noteOffTick));
+								break;
+							}
 							if (ev.strings == null || ev.strings.isEmpty()) {
 								// 未指定弦的一般全刷
 								int note = (ev.type == 'd') ? NOTE_STRUM_DOWN_FULL : NOTE_STRUM_UP;
@@ -540,6 +564,18 @@ public class AmpleGuitarExporter {
 								for (int s : ev.strings) {
 									realStrings.add(SimpleStringUtil.toRealString(s));
 								}
+								// d:321（物理 1,2,3）＝ Ample 的 Open Down Treble (74)
+								if (ev.type == 'd' && realStrings.size() == 3
+										&& realStrings.contains(1) && realStrings.contains(2) && realStrings.contains(3)) {
+									int ccVal = strokeToCC14(ev.strokeDenominator);
+									if (ccVal != lastSentCC14) {
+										rightHandEvents.add(createCCEvent(0, 14, ccVal, evStartTick));
+										lastSentCC14 = ccVal;
+									}
+									rightHandEvents.add(createNoteOnEvent(0, NOTE_STRUM_DOWN_TREBLE, vel, evStartTick));
+									rightHandEvents.add(createNoteOffEvent(0, NOTE_STRUM_DOWN_TREBLE, noteOffTick));
+									break;
+								}
 								// 依刷弦方向排序：下刷物理弦大到小 (6->1)，上刷小到大 (1->6)
 								if (ev.type == 'd') {
 									realStrings.sort(Comparator.reverseOrder());
@@ -548,6 +584,17 @@ public class AmpleGuitarExporter {
 								}
 								emitStrumNotes(rightHandEvents, realStrings, ev.strokeDenominator, vel, evStartTick, noteOffTick);
 							}
+							break;
+						}
+						case 'X': {
+							// X 死音刷（切音/拍弦）：Ample Mute 1 (77)
+							int ccVal = strokeToCC14(ev.strokeDenominator);
+							if (ccVal != lastSentCC14) {
+								rightHandEvents.add(createCCEvent(0, 14, ccVal, evStartTick));
+								lastSentCC14 = ccVal;
+							}
+							rightHandEvents.add(createNoteOnEvent(0, NOTE_MUTE_1, vel, evStartTick));
+							rightHandEvents.add(createNoteOffEvent(0, NOTE_MUTE_1, noteOffTick));
 							break;
 						}
 						case 'x': {
